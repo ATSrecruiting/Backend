@@ -1,0 +1,17 @@
+[project]
+name = "ats"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "alembic>=1.14.1",
+    "fastapi>=0.115.8",
+    "httpx>=0.28.1",
+    "openai-whisper>=20240930",
+    "pdfplumber>=0.11.5",
+    "ruff>=0.9.4",
+    "sqlalchemy>=2.0.37",
+    "uvicorn>=0.34.0",
+]
+
