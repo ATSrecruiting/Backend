@@ -16,18 +16,14 @@ async def transcribe_audio(audio: UploadFile):
         raise HTTPException(status_code=400, detail="Unsupported file format")
 
     try:
-
         with tempfile.NamedTemporaryFile(
             delete=False, suffix=os.path.splitext(audio.filename)[1]
         ) as temp_file:
-
             content = await audio.read()
             temp_file.write(content)
             temp_file.flush()
 
-
             result = model.transcribe(temp_file.name)
-
 
             os.unlink(temp_file.name)
 

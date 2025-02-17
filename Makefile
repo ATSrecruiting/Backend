@@ -2,10 +2,14 @@
 
 .PHONY: migrate upgrade
 
+
+startdb:
+	sudo docker start atd-postgers
+
 # Command to autogenerate a migration file
 migrate:
-	alembic revision --autogenerate -m "$(message)"
+	alembic revision --autogenerate -m "$(filter-out $@,$(MAKECMDGOALS))"
 
 # Command to upgrade the database to the latest migration
 upgrade:
-	alembic upgrade head
+	alembic upgrade head 

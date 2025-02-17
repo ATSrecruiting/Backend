@@ -6,12 +6,27 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "alembic>=1.14.1",
+    "asyncpg>=0.30.0",
+    "faker>=36.1.0",
     "fastapi>=0.115.8",
+    "greenlet>=3.1.1",
     "httpx>=0.28.1",
+    "jose>=1.0.0",
+    "mypy>=1.15.0",
     "openai-whisper>=20240930",
+    "passlib>=1.7.4",
     "pdfplumber>=0.11.5",
+    "pydantic[email]>=2.10.6",
+    "pyjwt>=2.10.1",
+    "pytest>=8.3.4",
+    "pytest-asyncio>=0.25.3",
+    "python-dotenv>=1.0.1",
+    "python-jose[cryptography]>=3.3.0",
+    "python-multipart>=0.0.20",
     "ruff>=0.9.4",
     "sqlalchemy>=2.0.37",
+    "types-passlib>=1.7.7.20241221",
+    "types-python-jose>=3.3.4.20240106",
     "uvicorn>=0.34.0",
 ]
 

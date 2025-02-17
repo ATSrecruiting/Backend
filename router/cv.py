@@ -9,6 +9,7 @@ from schema.cv import UploadCVResponse
 router = APIRouter()
 
 
+@router.post("/upload/")
 async def upload_file(file: UploadFile = File(...)):
     try:
         upload_dir = Path("uploads")

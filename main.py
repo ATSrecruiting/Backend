@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from router import audio, cv
+from router import recruiter
 
 
 app = FastAPI()
@@ -14,8 +14,7 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-app.include_router(audio.router)
-app.include_router(cv.router)
+app.include_router(recruiter.router)
 
 
 @app.get("/")
