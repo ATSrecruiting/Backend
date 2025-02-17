@@ -1,5 +1,5 @@
 import uuid
-import datetime
+from datetime import datetime, timezone, timedelta
 import pytest
 from fastapi import HTTPException, status
 
@@ -17,8 +17,8 @@ def create_valid_payload():
         id=uuid.uuid4(),
         user_id=1,
         token_type="access",
-        issued_at=datetime.datetime.utcnow(),
-        expires_at=datetime.datetime.utcnow() + datetime.timedelta(minutes=10),
+        issued_at=datetime.now(timezone.utc),
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
         role_id=1,
         is_revoked=False,
     )
@@ -45,9 +45,9 @@ def test_validate_token_expired():
         id=uuid.uuid4(),
         user_id=1,
         token_type="access",
-        issued_at=datetime.datetime.utcnow() - datetime.timedelta(hours=1),
-        expires_at=datetime.datetime.utcnow()
-        - datetime.timedelta(minutes=1),  # expired token
+        issued_at=datetime.now(timezone.utc) - timedelta(hours=1),
+        expires_at=datetime.now(timezone.utc)
+        - timedelta(minutes=1),  # expired token
         role_id=1,
         is_revoked=False,
     )
@@ -63,8 +63,8 @@ def test_validate_token_revoked():
         id=uuid.uuid4(),
         user_id=1,
         token_type="access",
-        issued_at=datetime.datetime.utcnow(),
-        expires_at=datetime.datetime.utcnow() + datetime.timedelta(minutes=10),
+        issued_at=datetime.now(timezone.utc),
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
         role_id=1,
         is_revoked=True,
     )

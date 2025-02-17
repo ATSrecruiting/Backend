@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime, timezone
 import uuid
 from fastapi import HTTPException, status
 from pydantic import BaseModel, PlainSerializer
@@ -10,7 +10,7 @@ from typing import Optional
 
 UUIDStr = Annotated[uuid.UUID, PlainSerializer(lambda v: str(v), return_type=str)]
 DateTimeStr = Annotated[
-    datetime.datetime, PlainSerializer(lambda v: v.isoformat(), return_type=str)
+    datetime, PlainSerializer(lambda v: v.isoformat(), return_type=str)
 ]
 
 
@@ -53,18 +53,17 @@ def validate_token(token: str, secretKey: str, algorithm: str) -> Payload:
             id=uuid.UUID(payload_dict["id"]),
             user_id=payload_dict["user_id"],
             token_type=payload_dict["token_type"],
-            issued_at=datetime.datetime.fromisoformat(payload_dict["issued_at"]),
-            expires_at=datetime.datetime.fromisoformat(payload_dict["expires_at"]),
+            issued_at=datetime.fromisoformat(payload_dict["issued_at"]),
+            expires_at=datetime.fromisoformat(payload_dict["expires_at"]),
             role_id=payload_dict["role_id"],
             is_revoked=payload_dict["is_revoked"],
         )
 
-        # Check if token is expired or revoked
-        if payload.is_revoked or datetime.datetime.utcnow() > payload.expires_at:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token is invalid or expired",
-            )
+        current_time = datetime.now(timezone.utc)
+
+        # Compare with the timezone-aware expires_at
+        if payload.is_revoked or current_time > payload.expires_at:
+            raise HTTPException(status_code=401, detail="Token expired or revoked")
 
         return payload
 

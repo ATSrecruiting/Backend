@@ -4,6 +4,7 @@ from schema.recruiter import (
     CreateRecruiterResponse,
     LoginRequest,
     LoginResponse,
+    ProfileResponse,
 )
 from db.session import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +14,7 @@ from db.models import User, Recruiter, Session
 from auth.password import hash_password, verify_password
 from auth.token import Payload, create_token
 from util.config import config
+from auth.Oth2 import get_current_user
 import uuid
 import datetime
 
@@ -121,7 +123,7 @@ async def login(
         db.add(session)
         await db.commit()
 
-        return LoginResponse(AccessToken=access_token, RefreshToken=refresh_token)
+        return LoginResponse(access_token=access_token, refresh_token=refresh_token)
     except SQLAlchemyError as e:
         await db.rollback()
         raise HTTPException(
@@ -135,4 +137,16 @@ async def login(
         )
 
 
+@router.get("/profile", response_model=ProfileResponse)
+async def get_recruiter_profile(user: User = Depends(get_current_user)):
+    """
+    Get the recruiter profile
+    """
+    return ProfileResponse(
+        user_id=user.id,
+        email=user.email,
+        recruiter_id=user.recruiter.id,
+        first_name=user.recruiter.first_name,
+        last_name=user.recruiter.last_name,
+    )
 

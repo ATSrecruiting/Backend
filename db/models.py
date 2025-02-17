@@ -25,7 +25,7 @@ class User(Base):
     # Relationships
     sessions: Mapped[list["Session"]] = relationship(back_populates="user")
     recruiter: Mapped[Optional["Recruiter"]] = relationship(
-        back_populates="user", uselist=False
+        back_populates="user", uselist=False, lazy= "selectin"
     )
     candidate: Mapped[Optional["Candidate"]] = relationship(
         back_populates="user", uselist=False
@@ -65,6 +65,7 @@ class Recruiter(Base):
     )
     first_name: Mapped[str] = mapped_column(String, nullable=True)
     last_name: Mapped[str] = mapped_column(String, nullable=True)
+    profile_picture: Mapped[str] = mapped_column(String, nullable=True)
 
     # Relationship
     user: Mapped["User"] = relationship("User", back_populates="recruiter")
