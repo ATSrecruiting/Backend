@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr
 
+
 # /recruiter post
 class CreateRecruiterRequest(BaseModel):
     username: str
@@ -17,6 +18,7 @@ class CreateRecruiterResponse(BaseModel):
     first_name: str
     last_name: str
 
+
 # recruiter/login
 class LoginRequest(BaseModel):
     username: str
@@ -28,7 +30,12 @@ class LoginResponse(BaseModel):
     refresh_token: str
 
 
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+
 # /recruiter profile
+
 
 class ProfileResponse(BaseModel):
     recruiter_id: int

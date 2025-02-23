@@ -7,7 +7,7 @@ from sqlalchemy import (
     BigInteger,
 )
 from sqlalchemy.orm import mapped_column, Mapped, relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 from .base import Base
@@ -25,7 +25,7 @@ class User(Base):
     # Relationships
     sessions: Mapped[list["Session"]] = relationship(back_populates="user")
     recruiter: Mapped[Optional["Recruiter"]] = relationship(
-        back_populates="user", uselist=False, lazy= "selectin"
+        back_populates="user", uselist=False, lazy="selectin"
     )
     candidate: Mapped[Optional["Candidate"]] = relationship(
         back_populates="user", uselist=False
@@ -69,6 +69,10 @@ class Recruiter(Base):
 
     # Relationship
     user: Mapped["User"] = relationship("User", back_populates="recruiter")
+    vacancies: Mapped[list["Vacancy"]] = relationship(
+        "Vacancy", back_populates="recruiter"
+    )
+
 
 
 class Candidate(Base):
@@ -83,3 +87,28 @@ class Candidate(Base):
 
     # Relationship
     user: Mapped["User"] = relationship("User", back_populates="candidate")
+
+
+class Vacancy(Base):
+    __tablename__ = "vacancies"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    recruiter_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("recruiters.id"), index=True
+    )
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(String, nullable=False)
+    location: Mapped[str] = mapped_column(String, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=datetime.now(timezone.utc)
+    )
+    end_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    # Relationship
+    recruiter: Mapped["Recruiter"] = relationship(
+        "Recruiter", back_populates="vacancies"
+    )
+    # applications: Mapped[list["Application"]] = relationship(
+    #     "Application", back_populates="vacancy"
+    # )

@@ -113,3 +113,28 @@ async def test_get_recruiter_profile(client):
     print(f"Response data: {data}")
     assert "user_id" in data
     assert "recruiter_id" in data
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_refresh(client):
+    username, password = await create_random_recruiter()
+
+    test_payload = {
+        "username": username,
+        "password": password,
+    }
+
+    response = await client.post("/recruiters/login", json=test_payload)
+    assert response.status_code == 200
+    data = response.json()
+    refresh_token = data["refresh_token"]
+
+    response = await client.post(
+        "/recruiters/refresh", json={"refresh_token": refresh_token}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    print(f"Response data: {data}")
+    assert "access_token" in data
+    assert "refresh_token" in data
+    assert data["access_token"] != data["refresh_token"]

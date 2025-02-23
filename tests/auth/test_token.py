@@ -46,8 +46,7 @@ def test_validate_token_expired():
         user_id=1,
         token_type="access",
         issued_at=datetime.now(timezone.utc) - timedelta(hours=1),
-        expires_at=datetime.now(timezone.utc)
-        - timedelta(minutes=1),  # expired token
+        expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),  # expired token
         role_id=1,
         is_revoked=False,
     )

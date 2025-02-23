@@ -5,6 +5,7 @@ from schema.recruiter import (
     LoginRequest,
     LoginResponse,
     ProfileResponse,
+    RefreshTokenRequest,
 )
 from db.session import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +14,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from db.models import User, Recruiter, Session
 from auth.password import hash_password, verify_password
 from auth.token import Payload, create_token
-from util.config import config
+from util.app_config import config
 from auth.Oth2 import get_current_user
 import uuid
 import datetime
@@ -88,7 +89,7 @@ async def login(
             is_revoked=False,
             issued_at=datetime.datetime.now(datetime.timezone.utc),
             expires_at=datetime.datetime.now(datetime.timezone.utc)
-            + datetime.timedelta(seconds=config.ACCESS_TOKEN_DURATION),
+            + datetime.timedelta(minutes=config.ACCESS_TOKEN_DURATION),
         )
 
         access_token = create_token(
@@ -137,11 +138,67 @@ async def login(
         )
 
 
+@router.post("/refresh", response_model=LoginResponse)
+async def refresh(data: RefreshTokenRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Refresh the access token using the refresh token
+    """
+    try:
+        result = await db.execute(
+            select(Session).filter(Session.refresh_token == data.refresh_token)
+        )
+        session = result.scalar_one_or_none()
+
+        if (
+            session is None
+            or session.is_blocked
+            or session.expires_at < datetime.datetime.now(datetime.timezone.utc)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid refresh token",
+            )
+
+        access_payload = Payload(
+            id=uuid.uuid4(),
+            user_id=session.user_id,
+            token_type="access_token",
+            is_revoked=False,
+            issued_at=datetime.datetime.now(datetime.timezone.utc),
+            expires_at=datetime.datetime.now(datetime.timezone.utc)
+            + datetime.timedelta(minutes=config.ACCESS_TOKEN_DURATION),
+        )
+
+        access_token = create_token(
+            access_payload,
+            secretKey=config.ACCESS_TOKEN_SECRET_KEY,
+            algorithm=config.ALGORITHM,
+        )
+
+        return LoginResponse(
+            access_token=access_token, refresh_token=data.refresh_token
+        )
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error during refresh: {str(e)}",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error during refresh: {str(e)}",
+        )
+
+
 @router.get("/profile", response_model=ProfileResponse)
 async def get_recruiter_profile(user: User = Depends(get_current_user)):
     """
     Get the recruiter profile
     """
+    if not user.recruiter:
+        raise HTTPException(status_code=404, detail="Recruiter profile not found")
+
     return ProfileResponse(
         user_id=user.id,
         email=user.email,
@@ -149,4 +206,3 @@ async def get_recruiter_profile(user: User = Depends(get_current_user)):
         first_name=user.recruiter.first_name,
         last_name=user.recruiter.last_name,
     )
-
