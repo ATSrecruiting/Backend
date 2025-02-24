@@ -9,7 +9,7 @@ from schema.cv import UploadCVResponse
 router = APIRouter()
 
 
-@router.post("/upload/")
+@router.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     try:
         upload_dir = Path("uploads")
@@ -22,6 +22,7 @@ async def upload_file(file: UploadFile = File(...)):
         cv_content = await process_cv_async(str(file_path))
 
         json_str = cv_content.replace("```json\n", "").replace("\n```", "")
+        print(json_str)
         cv_data = json.loads(json_str)
         res = UploadCVResponse(
             filename=file.filename,

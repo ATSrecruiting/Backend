@@ -16,48 +16,48 @@ async def process_cv_async(file_path):
             Here is the structure of the JSON object you must return:
             ```json
             {{
-                "firstName": "First Name",
-                "lastName": "Last Name",
-                "email": "Email",
-                "phoneNumber": "Phone Number",
-                "address": {{
-                    "street": "Street Address",
-                    "country": "Country"
-                }},
-                "dateOfBirth": "Date of Birth (YYYY-MM-DD)",
-                "yearsOfExperience": "Total Years of Experience (calculated as of January 2025, the way you calculate it is for each job experience you do end date minus start date which gives you a duration the you summ all the durations)",
-                "jobTitle": "Current Job Title",
-                "workExperience": [
-                    {{
-                        "title": "Job Title",
-                        "company": "Company Name",
-                        "startDate": "Start Date (YYYY-MM)",
-                        "endDate": "End Date (YYYY-MM or 'Present')",
-                        "location": "Location"
-                    }}
-                ],
-                "education": {{
-                    "degree": "Degree",
-                    "major": "Major",
-                    "school": "School Name",
-                    "graduationDate": "Graduation Date (YYYY)"
-                }},
-                "skills": {{
-                    "generalSkills": ["List of general skills"],
-                    "technicalSkills": ["List of technical skills"],
-                    "languages": [
-                        {{
-                            "language": "Language Name",
-                            "level": "Proficiency Level"
-                        }}
-                    ]
-                }},
-                "certifications": [
-                    {{
-                        "certifier": "Certifier Name",
-                        "certificationName": "Certification Name"
-                    }}
+            "first_name": "First Name",
+            "last_name": "Last Name",
+            "email": "Email",
+            "phone_number": "Phone Number",
+            "address": {{
+                "street": "Street Address",
+                "country": "Country"
+            }},
+            "date_of_birth": "Date of Birth (YYYY-MM-DD)",
+            "years_of_experience": "Total Years of Experience (calculated as of January 2025, the way you calculate it is for each job experience you do end date minus start date which gives you a duration the you summ all the durations)",
+            "job_title": "Current Job Title",
+            "work_experience": [
+                {{
+                "title": "Job Title",
+                "company": "Company Name",
+                "start_date": "Start Date (YYYY-MM)",
+                "end_date": "End Date (YYYY-MM or 'Present')",
+                "location": "Location"
+                }}
+            ],
+            "education": {{
+                "degree": "Degree",
+                "major": "Major",
+                "school": "School Name",
+                "graduation_date": "Graduation Date (YYYY)"
+            }},
+            "skills": {{
+                "general_skills": ["List of general skills"],
+                "technical_skills": ["List of technical skills"],
+                "languages": [
+                {{
+                    "language": "Language Name",
+                    "level": "Proficiency Level"
+                }}
                 ]
+            }},
+            "certifications": [
+                {{
+                "certifier": "Certifier Name",
+                "certification_name": "Certification Name"
+                }}
+            ]
             }}
             Now, here is the CV:
             {docs_content}
@@ -74,7 +74,7 @@ async def process_cv_async(file_path):
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "mistralai/mistral-small-24b-instruct-2501",
+                    "model": "google/gemini-2.0-flash-001",
                     "messages": [{"role": "user", "content": prompt}],
                 },
             )

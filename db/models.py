@@ -6,6 +6,7 @@ from sqlalchemy import (
     DateTime,
     BigInteger,
 )
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import mapped_column, Mapped, relationship
 from datetime import datetime, timezone
 from sqlalchemy.dialects.postgresql import UUID
@@ -84,6 +85,16 @@ class Candidate(Base):
     )
     first_name: Mapped[str] = mapped_column(String, nullable=True)
     last_name: Mapped[str] = mapped_column(String, nullable=True)
+    email: Mapped[str] = mapped_column(String, nullable=True)
+    phone_number: Mapped[str] = mapped_column(String, nullable=True)
+    address: Mapped[dict] = mapped_column(JSONB, nullable=True)
+    date_of_birth: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    years_of_experience: Mapped[int] = mapped_column(Integer, nullable=True)
+    job_title: Mapped[str] = mapped_column(String, nullable=True)
+    work_experience: Mapped[list[dict]] = mapped_column(JSONB, nullable=True)
+    education: Mapped[dict] = mapped_column(JSONB, nullable=True)
+    skills: Mapped[dict] = mapped_column(JSONB, nullable=True)
+    certifications: Mapped[list[dict]] = mapped_column(JSONB, nullable=True)
 
     # Relationship
     user: Mapped["User"] = relationship("User", back_populates="candidate")

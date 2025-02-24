@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from router import recruiter, vacancies
+from router import recruiter, vacancies, cv
 
 
 app = FastAPI()
@@ -16,6 +16,7 @@ app.add_middleware(
 
 app.include_router(recruiter.router)
 app.include_router(vacancies.router)
+app.include_router(cv.router)
 
 
 @app.get("/")

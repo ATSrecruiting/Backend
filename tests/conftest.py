@@ -4,7 +4,7 @@ from httpx import ASGITransport
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from db.models import Base
-from router.recruiter import router
+from router import vacancies, recruiter
 from db.session import get_db, engine
 import asyncio
 
@@ -19,7 +19,8 @@ async def override_get_db():
 
 
 app = FastAPI()
-app.include_router(router)
+app.include_router(vacancies.router)
+app.include_router(recruiter.router)
 app.dependency_overrides[get_db] = override_get_db
 
 
