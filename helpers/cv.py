@@ -21,42 +21,44 @@ async def process_cv_async(file_path):
             "email": "Email",
             "phone_number": "Phone Number",
             "address": {{
-                "street": "Street Address",
-                "country": "Country"
+            "street": "Street Address",
+            "country": "Country"
             }},
             "date_of_birth": "Date of Birth (YYYY-MM-DD)",
             "years_of_experience": "Total Years of Experience (calculated as of January 2025, the way you calculate it is for each job experience you do end date minus start date which gives you a duration the you summ all the durations)",
             "job_title": "Current Job Title",
             "work_experience": [
-                {{
-                "title": "Job Title",
-                "company": "Company Name",
-                "start_date": "Start Date (YYYY-MM)",
-                "end_date": "End Date (YYYY-MM or 'Present')",
-                "location": "Location"
-                }}
+            {{
+            "title": "Job Title",
+            "company": "Company Name",
+            "start_date": "Start Date (YYYY-MM)",
+            "end_date": "End Date (YYYY-MM or 'Present')",
+            "location": "Location"
+            }}
             ],
-            "education": {{
-                "degree": "Degree",
-                "major": "Major",
-                "school": "School Name",
-                "graduation_date": "Graduation Date (YYYY)"
-            }},
+            "education": [
+            {{
+            "degree": "Degree",
+            "major": "Major",
+            "school": "School Name",
+            "graduation_date": "Graduation Date (YYYY)"
+            }}
+            ],
             "skills": {{
-                "general_skills": ["List of general skills"],
-                "technical_skills": ["List of technical skills"],
-                "languages": [
-                {{
-                    "language": "Language Name",
-                    "level": "Proficiency Level"
-                }}
-                ]
+            "general_skills": ["List of general skills"],
+            "technical_skills": ["List of technical skills"],
+            "languages": [
+            {{
+                "language": "Language Name",
+                "level": "Proficiency Level"
+            }}
+            ]
             }},
             "certifications": [
-                {{
-                "certifier": "Certifier Name",
-                "certification_name": "Certification Name"
-                }}
+            {{
+            "certifier": "Certifier Name",
+            "certification_name": "Certification Name"
+            }}
             ]
             }}
             Now, here is the CV:
