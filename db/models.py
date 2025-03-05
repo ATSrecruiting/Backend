@@ -9,7 +9,6 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import mapped_column, Mapped, relationship
 from datetime import datetime, timezone
-from sqlalchemy.dialects.postgresql import UUID
 import uuid
 from .base import Base
 from typing import Optional
