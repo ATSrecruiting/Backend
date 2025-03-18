@@ -4,7 +4,7 @@
 
 
 startdb:
-	sudo docker start atd-postgers
+	sudo docker start postgres-ats
 
 # Command to autogenerate a migration file
 migrate:

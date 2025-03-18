@@ -9,12 +9,14 @@ from schema.cv import UploadCVResponse
 router = APIRouter()
 
 
-@router.post("/upload")
+@router.post("/upload_resume")
 async def upload_file(file: UploadFile = File(...)):
     try:
         upload_dir = Path("uploads")
         upload_dir.mkdir(exist_ok=True)
 
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="No filename provided.")
         file_path = upload_dir / file.filename
         with file_path.open("wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
@@ -26,7 +28,7 @@ async def upload_file(file: UploadFile = File(...)):
         cv_data = json.loads(json_str)
         res = UploadCVResponse(
             filename=file.filename,
-            content_type=file.content_type,
+            content_type=file.content_type or "application/octet-stream",
             file_path=str(file_path),
             cv_data=cv_data,
         )

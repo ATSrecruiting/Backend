@@ -94,3 +94,5 @@ async def process_cv_async(file_path):
 
     except Exception as e:
         raise Exception(f"Error processing CV: {str(e)}")
+
+

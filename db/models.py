@@ -14,6 +14,20 @@ from .base import Base
 from typing import Optional
 
 
+class Attachment(Base):
+    __tablename__ = "attachments"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    filename: Mapped[str] = mapped_column(String, nullable=False)
+    file_path: Mapped[str] = mapped_column(String, nullable=False)
+    content_type: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=datetime.now(timezone.utc)
+    )
+    is_used = mapped_column(Boolean, nullable=False, default=False)
+
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -94,6 +108,8 @@ class Candidate(Base):
     education: Mapped[dict] = mapped_column(JSONB, nullable=True)
     skills: Mapped[dict] = mapped_column(JSONB, nullable=True)
     certifications: Mapped[list[dict]] = mapped_column(JSONB, nullable=True)
+    status: Mapped[str] = mapped_column(String, nullable=True, default="applied")
+    created_at : Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True, default=datetime.now(timezone.utc))
 
     # Relationship
     user: Mapped["User"] = relationship("User", back_populates="candidate")
