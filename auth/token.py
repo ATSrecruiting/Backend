@@ -5,7 +5,6 @@ from pydantic import BaseModel, PlainSerializer
 import jwt
 from jose import JWTError
 from typing import Annotated
-from typing import Optional
 
 
 UUIDStr = Annotated[uuid.UUID, PlainSerializer(lambda v: str(v), return_type=str)]
@@ -20,7 +19,7 @@ class Payload(BaseModel):
     token_type: str
     issued_at: DateTimeStr
     expires_at: DateTimeStr
-    role_id: Optional[int] = None
+    account_type: str
     is_revoked: bool
 
 
@@ -55,7 +54,7 @@ def validate_token(token: str, secretKey: str, algorithm: str) -> Payload:
             token_type=payload_dict["token_type"],
             issued_at=datetime.fromisoformat(payload_dict["issued_at"]),
             expires_at=datetime.fromisoformat(payload_dict["expires_at"]),
-            role_id=payload_dict["role_id"],
+            account_type=payload_dict["account_type"],
             is_revoked=payload_dict["is_revoked"],
         )
 

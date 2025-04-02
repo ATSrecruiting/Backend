@@ -36,6 +36,7 @@ async def create_recruiter_profile(
                 username=request.username,
                 email=request.email,
                 password=password_hash,
+                account_type="recruiter",
             )
             db.add(user)
             await db.flush()  # ensures user.id is populated
@@ -87,6 +88,7 @@ async def login(
             user_id=user.id,
             token_type="access_token",
             is_revoked=False,
+            account_type=user.account_type,
             issued_at=datetime.datetime.now(datetime.timezone.utc),
             expires_at=datetime.datetime.now(datetime.timezone.utc)
             + datetime.timedelta(minutes=config.ACCESS_TOKEN_DURATION),
@@ -102,6 +104,7 @@ async def login(
             id=uuid.uuid4(),
             user_id=user.id,
             token_type="refresh_token",
+            account_type=user.account_type,
             is_revoked=False,
             issued_at=datetime.datetime.now(datetime.timezone.utc),
             expires_at=datetime.datetime.now(datetime.timezone.utc)
@@ -163,6 +166,7 @@ async def refresh(data: RefreshTokenRequest, db: AsyncSession = Depends(get_db))
             id=uuid.uuid4(),
             user_id=session.user_id,
             token_type="access_token",
+            account_type="recruiter",
             is_revoked=False,
             issued_at=datetime.datetime.now(datetime.timezone.utc),
             expires_at=datetime.datetime.now(datetime.timezone.utc)

@@ -2,8 +2,6 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from pathlib import Path
 import shutil
-from helpers.cv import process_cv_async
-import json
 from schema.attachments import AttachmentUploadResponse
 from db.models import Attachment
 from fastapi import Depends

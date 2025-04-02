@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from router import recruiter, vacancies, cv, candidates, attachments
+from router import recruiter, vacancies, cv, candidates, attachments, chat, auth
 
 
 app = FastAPI()
@@ -19,6 +19,10 @@ app.include_router(vacancies.router)
 app.include_router(cv.router)
 app.include_router(candidates.router)
 app.include_router(attachments.router)
+app.include_router(chat.router)
+app.include_router(auth.router)
+
+
 
 
 @app.get("/")

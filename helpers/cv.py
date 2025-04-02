@@ -1,16 +1,15 @@
 import pdfplumber
 import httpx
+from util.app_config import config
 
 
-async def process_cv_async(file_path):
+async def process_cv_async(file_path) -> str:
     try:
         # Read PDF content
         with pdfplumber.open(file_path) as pdf:
             docs_content = "\n\n".join(page.extract_text() for page in pdf.pages)
 
-        api_key = (
-            "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"
-        )
+        api_key = config.OPEN_ROUTER_KEY
         prompt = f"""You will be given a CV. Extract the following information and structure it into a JSON object. Do not output any additional text or explanations—only the JSON object. If any information is missing or cannot be found, use `null` as the value.
 
             Here is the structure of the JSON object you must return:
