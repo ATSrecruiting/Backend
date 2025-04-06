@@ -19,11 +19,12 @@ from typing import Optional
 from pgvector.sqlalchemy import Vector
 
 
-
 class Attachment(Base):
     __tablename__ = "attachments"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+    )
     filename: Mapped[str] = mapped_column(String, nullable=False)
     file_path: Mapped[str] = mapped_column(String, nullable=False)
     content_type: Mapped[str] = mapped_column(String, nullable=False)
@@ -32,9 +33,8 @@ class Attachment(Base):
     )
     is_used = mapped_column(Boolean, nullable=False, default=False)
 
-        # Relationship
+    # Relationship
     candidate: Mapped["Candidate"] = relationship("Candidate", back_populates="resume")
-
 
 
 class User(Base):
@@ -44,11 +44,13 @@ class User(Base):
     username: Mapped[str] = mapped_column(String, unique=True, index=True)
     email: Mapped[str] = mapped_column(String, unique=True, index=True)
     password: Mapped[str] = mapped_column(String)
-    account_type: Mapped[str] = mapped_column(Enum("candidate", "recruiter", name="account_type_enum"), nullable=False)
+    account_type: Mapped[str] = mapped_column(
+        Enum("candidate", "recruiter", name="account_type_enum"), nullable=False
+    )
     profile_picture: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("attachments.id", ondelete="SET NULL"),
-        nullable=True
+        nullable=True,
     )
 
     # Relationships
@@ -103,7 +105,6 @@ class Recruiter(Base):
     )
 
 
-
 class Candidate(Base):
     __tablename__ = "candidates"
 
@@ -124,17 +125,22 @@ class Candidate(Base):
     skills: Mapped[dict] = mapped_column(JSONB, nullable=True)
     certifications: Mapped[list[dict]] = mapped_column(JSONB, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=True, default="applied")
-    created_at : Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True, default=datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=datetime.now(timezone.utc)
+    )
     resume_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("attachments.id"), nullable=True
     )
     embedding: Mapped[list[float]] = mapped_column(Vector(768), nullable=True)
-    is_embedding_ready: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-
+    is_embedding_ready: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
 
     # Relationship
     user: Mapped["User"] = relationship("User", back_populates="candidate")
-    resume: Mapped["Attachment"] = relationship("Attachment", back_populates="candidate")
+    resume: Mapped["Attachment"] = relationship(
+        "Attachment", back_populates="candidate"
+    )
 
 
 class Vacancy(Base):
@@ -164,25 +170,36 @@ class Vacancy(Base):
 
 class TempChatSession(Base):
     __tablename__ = "temp_chat_sessions"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    user_id : Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
-    candidates :Mapped[dict] = mapped_column(JSONB, nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+    )
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    candidates: Mapped[dict] = mapped_column(JSONB, nullable=True)
 
 
 class ChatSession(Base):
     __tablename__ = "chat_sessions"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    user_id : Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
-    created_at : Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=datetime.now(timezone.utc))
-    last_activity : Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=datetime.now(timezone.utc))
-    candidates :Mapped[dict] = mapped_column(JSONB, nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+    )
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=datetime.now(timezone.utc)
+    )
+    last_activity: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=datetime.now(timezone.utc)
+    )
+    candidates: Mapped[dict] = mapped_column(JSONB, nullable=True)
 
 
-
-class ChatMessages(Base): 
+class ChatMessages(Base):
     __tablename__ = "chat_messages"
-    id : Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    chat_session_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("chat_sessions.id"), index=True)
-    sender : Mapped[str] = mapped_column(String, nullable=False)
-    content : Mapped[str] = mapped_column(String, nullable=False)
-    timestamp : Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=datetime.now(timezone.utc))
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    chat_session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("chat_sessions.id"), index=True
+    )
+    sender: Mapped[str] = mapped_column(String, nullable=False)
+    content: Mapped[str] = mapped_column(String, nullable=False)
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=datetime.now(timezone.utc)
+    )

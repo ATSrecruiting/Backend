@@ -1,14 +1,6 @@
-
-
-
-
-
-
-
-
-
 from pydantic import BaseModel
 from uuid import UUID
+
 
 class AttachmentUploadResponse(BaseModel):
     uuid: UUID
@@ -19,5 +11,5 @@ class AttachmentUploadResponse(BaseModel):
 
 class ListAttachments(BaseModel):
     uuid: UUID
-    name : str
-    url : str
+    name: str
+    url: str

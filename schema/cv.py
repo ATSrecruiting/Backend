@@ -4,7 +4,7 @@ from typing import Any
 
 
 class UploadCVResponse(BaseModel):
-    file_id : UUID
+    file_id: UUID
     filename: str
     content_type: str
     file_path: str

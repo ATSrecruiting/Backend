@@ -10,6 +10,7 @@ async def process_cv_async(file_path) -> str:
             docs_content = "\n\n".join(page.extract_text() for page in pdf.pages)
 
         api_key = config.OPEN_ROUTER_KEY
+        print(api_key)
         prompt = f"""You will be given a CV. Extract the following information and structure it into a JSON object. Do not output any additional text or explanations—only the JSON object. If any information is missing or cannot be found, use `null` as the value.
 
             Here is the structure of the JSON object you must return:
@@ -93,5 +94,3 @@ async def process_cv_async(file_path) -> str:
 
     except Exception as e:
         raise Exception(f"Error processing CV: {str(e)}")
-
-

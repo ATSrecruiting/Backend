@@ -5,12 +5,11 @@ from typing import List, Optional
 from datetime import datetime, timezone
 
 
-
-
-class RegisterCandidateRequest (BaseModel):
+class RegisterCandidateRequest(BaseModel):
     username: str
     email: EmailStr
     password: str
+
 
 class RegisterCandidateResponse(BaseModel):
     user_id: int
@@ -22,16 +21,20 @@ class Address(BaseModel):
     street: Optional[str] = None
     country: Optional[str] = None
 
+
 class VerificationDetail(BaseModel):
-    recruiter_id: int # Assuming recruiter ID is an integer
-    verified_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc)) # Store UTC timestamp
+    recruiter_id: int  # Assuming recruiter ID is an integer
+    verified_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )  # Store UTC timestamp
+
 
 class WorkExperience(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     title: Optional[str] = None
     company: Optional[str] = None
     start_date: Optional[str] = None
-    end_date: Optional[str] = None 
+    end_date: Optional[str] = None
     location: Optional[str] = None
     attachment_ids: Optional[List[UUID]] = None
     # Remove is_verified and verified_by
@@ -41,11 +44,9 @@ class WorkExperience(BaseModel):
     # Add a list to store verification details
     verifications: List[VerificationDetail] = Field(default_factory=list)
 
-    
-
 
 class Education(BaseModel):
-    id : UUID = Field(default_factory=uuid4)
+    id: UUID = Field(default_factory=uuid4)
     degree: Optional[str] = None
     major: Optional[str] = None
     school: Optional[str] = None
@@ -57,6 +58,7 @@ class Language(BaseModel):
     language: Optional[str] = None
     level: Optional[str] = None
 
+
 class SkillSet(BaseModel):
     general_skills: Optional[List[str]] = None
     technical_skills: Optional[List[str]] = None
@@ -64,7 +66,7 @@ class SkillSet(BaseModel):
 
 
 class Certification(BaseModel):
-    id : UUID = Field(default_factory=uuid4)
+    id: UUID = Field(default_factory=uuid4)
     certifier: Optional[str] = None
     certification_name: Optional[str] = None
     attachment_id: Optional[List[UUID]] = None  # Optional: can be null
@@ -86,7 +88,6 @@ class CVData(BaseModel):
     certifications: Optional[List[Certification]] = None
 
 
-
 class LoginResponse(BaseModel):
     access_token: str
     refresh_token: str
@@ -106,23 +107,18 @@ class ListCandidatesResponse(BaseModel):
     date_of_birth: str
     years_of_experience: float
     job_title: str
-    status : str | None
+    status: str | None
     created_at: str
     tags: List[str]
     rating: Optional[float] = None
 
 
-
-
-    
 class ListCandidatesFromSessionIdResponse(BaseModel):
     id: int
     first_name: str
     last_name: str
     years_of_experience: float
     job_title: str
-
-
 
 
 class GetCandidatePersonalInfo(BaseModel):
@@ -136,27 +132,27 @@ class GetCandidatePersonalInfo(BaseModel):
 
 
 class WorkExpAttachment(BaseModel):
-    file_path : str
-    filename : str
+    file_path: str
+    filename: str
+
 
 class VerificationDetailResponse(BaseModel):
-    recruiter_id: int 
+    recruiter_id: int
     verified_at: datetime
-    recruiter_name: Optional[str] = None # Add the name field
+    recruiter_name: Optional[str] = None  # Add the name field
 
 
 class GetCandidateWorkExperience(BaseModel):
-    id: Optional[UUID] = None 
+    id: Optional[UUID] = None
     title: Optional[str] = None
     company: Optional[str] = None
     start_date: Optional[str] = None
-    end_date: Optional[str] = None 
+    end_date: Optional[str] = None
     location: Optional[str] = None
     attachments: List[WorkExpAttachment] = Field(default_factory=list)
-    
+
     # Use the response model that includes the name
     verifications: List[VerificationDetailResponse] = Field(default_factory=list)
-
 
 
 # Update the response model
@@ -164,3 +160,9 @@ class VerifyWorkExperienceResponse(BaseModel):
     work_experience_id: str
     recruiter_id: int
     message: str = "Work experience verified successfully."
+
+
+class UnverifyWorkExperienceResponse(BaseModel):
+    work_experience_id: str
+    recruiter_id: int
+    message: str

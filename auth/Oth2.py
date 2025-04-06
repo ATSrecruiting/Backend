@@ -31,11 +31,19 @@ async def get_current_user(
 
     except JWTError:
         raise credentials_exception
-    
+
     if payload.account_type == "recruiter":
-        result = await db.execute(select(User).options(joinedload(User.recruiter)).where(User.id == payload.user_id))
+        result = await db.execute(
+            select(User)
+            .options(joinedload(User.recruiter))
+            .where(User.id == payload.user_id)
+        )
     elif payload.account_type == "candidate":
-        result = await db.execute(select(User).options(joinedload(User.candidate)).where(User.id == payload.user_id))
+        result = await db.execute(
+            select(User)
+            .options(joinedload(User.candidate))
+            .where(User.id == payload.user_id)
+        )
     else:
         raise credentials_exception
     user: User | None = result.scalar_one_or_none()

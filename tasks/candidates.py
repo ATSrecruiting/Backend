@@ -8,7 +8,6 @@ from sentence_transformers import SentenceTransformer
 from db.session import SessionLocal
 
 
-
 async def embed_candidates_data(candidate_id: int):
     # Create a new database session for the background task
     async with SessionLocal() as db:
@@ -31,7 +30,7 @@ async def embed_candidates_data(candidate_id: int):
                     Candidate.skills,
                     Candidate.certifications,
                     Candidate.resume_id,
-                    Attachment.file_path.label('resume_path')
+                    Attachment.file_path.label("resume_path"),
                 )
                 .join(Attachment, Candidate.resume_id == Attachment.id, isouter=True)
                 .where(Candidate.id == candidate_id)
@@ -63,7 +62,7 @@ async def embed_candidates_data(candidate_id: int):
             """
 
             # Generate embedding
-            model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')
+            model = SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
             embedding_vector = model.encode(candidate_details).tolist()
 
             # Update the candidate record with the embedding
@@ -82,5 +81,3 @@ async def embed_candidates_data(candidate_id: int):
         finally:
             # Ensure the session is closed
             await db.close()
-    
-    

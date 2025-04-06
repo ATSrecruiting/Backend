@@ -35,14 +35,14 @@ async def test_create_vacancy(client):
     end_date = datetime(2025, 12, 31).isoformat()  # Ensuring valid date format
 
     response = await client.post(
-        "/vacancies", 
+        "/vacancies",
         json={
             "title": fake.job(),
             "description": fake.text(),
             "location": fake.city(),
             "end_date": end_date,  # Correct date format
-        }, 
-        headers={"Authorization": f"Bearer {data['access_token']}"}
+        },
+        headers={"Authorization": f"Bearer {data['access_token']}"},
     )
 
     if response.status_code != 200:
@@ -60,4 +60,3 @@ async def test_create_vacancy(client):
     assert "is_active" in data
     assert "created_at" in data
     assert "end_date" in data
-

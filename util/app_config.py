@@ -13,8 +13,7 @@ class Config(BaseModel):
     ACCESS_TOKEN_DURATION: int
     REFRESH_TOKEN_DURATION: int
     SQLALCHEMY_DATABASE_URI: str
-    OPEN_ROUTER_KEY:str
-
+    OPEN_ROUTER_KEY: str
 
 
 config = Config(
@@ -24,5 +23,5 @@ config = Config(
     ACCESS_TOKEN_DURATION=int(os.getenv("ACCESS_TOKEN_DURATION", "0")),
     REFRESH_TOKEN_DURATION=int(os.getenv("REFRESH_TOKEN_DURATION", "0")),
     SQLALCHEMY_DATABASE_URI=os.getenv("SQLALCHEMY_DATABASE_URI", ""),
-    OPEN_ROUTER_KEY=os.getenv("OPEN_ROUTER_KEY", "")
+    OPEN_ROUTER_KEY=os.getenv("OPEN_ROUTER_KEY", ""),
 )

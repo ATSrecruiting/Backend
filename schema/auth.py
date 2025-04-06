@@ -1,13 +1,3 @@
-
-
-
-
-
-
-
-
-
-
 import email
 import profile
 from pydantic import BaseModel
@@ -24,12 +14,11 @@ class LoginRequest(BaseModel):
     password: str
 
 
-
 class GetLoggedUserResponse(BaseModel):
-    user_id : int
-    user_type : str
+    user_id: int
+    recruiter_id: int | None
+    candidate_id: int | None
+    user_type: str
     first_name: str
     last_name: str
     email: str
-    
-

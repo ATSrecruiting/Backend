@@ -18,6 +18,3 @@ class CreateVacancyResponse(BaseModel):
     is_active: bool
     created_at: datetime
     end_date: datetime
-
-
-

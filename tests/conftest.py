@@ -42,5 +42,3 @@ async def prepare_database():
 
 
 transport = ASGITransport(app=app)
-
-

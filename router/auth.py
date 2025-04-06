@@ -16,10 +16,6 @@ from auth.Oth2 import get_current_user
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
-
-
-
-
 router = APIRouter(prefix="/auth")
 
 
@@ -31,9 +27,7 @@ async def login(
     Login a recruiter
     """
     try:
-        result = await db.execute(
-            select(User).filter(User.email == login_data.email)
-        )
+        result = await db.execute(select(User).filter(User.email == login_data.email))
         user = result.scalar_one_or_none()
 
         if user is None or not verify_password(login_data.password, user.password):
@@ -86,7 +80,11 @@ async def login(
         db.add(session)
         await db.commit()
 
-        return LoginResponse(access_token=access_token, refresh_token=refresh_token, account_type=user.account_type)
+        return LoginResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            account_type=user.account_type,
+        )
     except SQLAlchemyError as e:
         await db.rollback()
         raise HTTPException(
@@ -98,13 +96,10 @@ async def login(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error during login: {str(e)}",
         )
-    
 
 
-@router.get("/user", response_model= GetLoggedUserResponse)
-async def get_logged_user(
-    dbps: Tuple[User, AsyncSession] = Depends(get_current_user)
-):
+@router.get("/user", response_model=GetLoggedUserResponse)
+async def get_logged_user(dbps: Tuple[User, AsyncSession] = Depends(get_current_user)):
     """
     Get the current user
     """
@@ -112,24 +107,27 @@ async def get_logged_user(
         user, db = dbps
         if user.account_type == "recruiter" and user.recruiter is not None:
             return GetLoggedUserResponse(
-                user_id= user.id,
-                user_type= user.account_type,
+                user_id=user.id,
+                recruiter_id=user.recruiter.id,
+                candidate_id=None,
+                user_type=user.account_type,
                 first_name=user.recruiter.first_name,
                 last_name=user.recruiter.last_name,
-                email=user.email
+                email=user.email,
             )
         elif user.account_type == "candidate" and user.candidate is not None:
             return GetLoggedUserResponse(
-                user_id= user.id,
-                user_type= user.account_type,
+                user_id=user.id,
+                recruiter_id=None,
+                candidate_id=user.candidate.id,
+                user_type=user.account_type,
                 first_name=user.candidate.first_name,
                 last_name=user.candidate.last_name,
-                email=user.email
+                email=user.email,
             )
-    
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error during getting user: {str(e)}",
         )
-        
