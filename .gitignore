@@ -13,3 +13,5 @@ wheels/
 test.db
 
 credentials.txt
+
+.env
