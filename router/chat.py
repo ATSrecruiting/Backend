@@ -90,6 +90,11 @@ async def send_message(
     candidates_objs = candidates_data_q.scalars().all()
     candidates_data = []
     for candidate in candidates_objs:
+        resume_access_url = None
+        if candidate.resume and candidate.resume.id:
+            resume_access_url = f"{config.API_BASE_URL}/download_resume_url/{candidate.resume.id}"
+        else:
+            resume_access_url = "No resume file associated."
         candidates_data.append(
             {
                 "id": candidate.id,
@@ -105,7 +110,7 @@ async def send_message(
                 "education": candidate.education,
                 "skills": candidate.skills,
                 "certifications": candidate.certifications,
-                "resume_link": candidate.resume.file_path,
+                "resume_link": resume_access_url,
             }
         )
 
@@ -122,9 +127,6 @@ async def send_message(
     Format your responses in clear, professional language suitable for recruitment professionals.
     """
 
-    print(candidates_data)
-    print("=====================================")
-    print(chat_history)
 
     prompt = f"""
     {system_instruction}

@@ -35,6 +35,7 @@ from typing import Dict
 from uuid import UUID
 from sqlalchemy import update
 
+
 router = APIRouter(prefix="/candidates")
 
 
@@ -304,11 +305,11 @@ async def get_candidate_work_experience(
                     else WorkExperience.model_validate(exp)
                     for exp in raw_work_experience_list
                 ]
-            except Exception as validation_error:
+            except Exception:
                 # logger.error(...)
                 raise HTTPException(
                     status_code=500,
-                    detail=f"Error validating stored work experience data.",
+                    detail="Error validating stored work experience data.",
                 )
         else:
             return []
@@ -429,10 +430,10 @@ async def get_candidate_work_experience(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         # logger.error(...)
         raise HTTPException(
-            status_code=500, detail=f"An unexpected internal server error occurred."
+            status_code=500, detail="An unexpected internal server error occurred."
         )
 
 
@@ -552,12 +553,12 @@ async def verify_work_experience(
     except HTTPException:
         # Re-raise HTTPExceptions directly to let FastAPI handle them
         raise
-    except Exception as e:
+    except Exception:
         await db.rollback()
         # Log the full error for debugging
         # logger.error(f"Internal server error during work experience verification: {e}", exc_info=True)
         raise HTTPException(
-            status_code=500, detail=f"An unexpected internal server error occurred."
+            status_code=500, detail="An unexpected internal server error occurred."
         )
 
 
@@ -696,7 +697,7 @@ async def unverify_work_experience(
     except HTTPException:
         # Re-raise HTTPExceptions directly to let FastAPI handle them
         raise
-    except Exception as e:
+    except Exception:
         # Rollback transaction on any other unexpected error
         await db.rollback()
         # Log the error in a real application: logger.error(f"...", exc_info=True)

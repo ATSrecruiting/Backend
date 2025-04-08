@@ -1,5 +1,3 @@
-import email
-import profile
 from pydantic import BaseModel
 
 

@@ -1,4 +1,3 @@
-import profile
 from sqlalchemy import (
     Enum,
     Integer,

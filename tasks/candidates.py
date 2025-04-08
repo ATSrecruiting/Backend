@@ -6,17 +6,51 @@ from db.models import Attachment
 import json
 from sentence_transformers import SentenceTransformer
 from db.session import SessionLocal
+import boto3
+from botocore.exceptions import BotoCoreError, ClientError
+from util.app_config import config
+import os
+import io
 
 
 async def embed_candidates_data(candidate_id: int):
+    """
+    Background task to fetch candidate data, download resume from S3,
+    extract text, generate embedding, and update the database.
+    """
+    
+    # --- Initialize S3 client within the task ---
+    # We need a client instance here, separate from FastAPI's request lifecycle.
+    s3_client = None
+    try:
+        aws_region = getattr(config, 'AWS_REGION', os.getenv('AWS_REGION'))
+        if aws_region:
+            s3_client = boto3.client('s3', region_name=aws_region)
+        else:
+            # Rely on default config or IAM role
+            s3_client = boto3.client('s3')
+        
+        # Get Bucket Name
+        bucket_name = getattr(config, 'AWS_S3_BUCKET_NAME', os.getenv('AWS_S3_BUCKET_NAME'))
+        if not bucket_name:
+             # Decide how to handle: return, raise, etc. For now, let it proceed to DB query.
+             # The check later will catch if resume_path exists but download fails.
+             pass 
+
+    except (BotoCoreError, ClientError, Exception) as e:
+        raise ValueError(f"Failed to create S3 client: {e}")
+        # Depending on requirements, you might want to stop the task here
+        # return 
+
+    # --- Database Operations ---
     # Create a new database session for the background task
     async with SessionLocal() as db:
         try:
-            # Query candidate and resume data
+            # Query candidate and resume data (resume_path is now the S3 key)
             query = await db.execute(
                 select(
+                    # ... (select all your Candidate fields) ...
                     Candidate.id,
-                    Candidate.user_id,
                     Candidate.first_name,
                     Candidate.last_name,
                     Candidate.email,
@@ -29,55 +63,94 @@ async def embed_candidates_data(candidate_id: int):
                     Candidate.education,
                     Candidate.skills,
                     Candidate.certifications,
-                    Candidate.resume_id,
-                    Attachment.file_path.label("resume_path"),
+                    Attachment.file_path.label("s3_resume_key"), # Renamed label for clarity
                 )
                 .join(Attachment, Candidate.resume_id == Attachment.id, isouter=True)
                 .where(Candidate.id == candidate_id)
             )
-            result = query.one_or_none()
+            result = query.mappings().one_or_none() # Use mappings() for dict-like access
 
-            if result is None or result.resume_path is None:
-                raise ValueError("Candidate not found or resume path is missing.")
+            if result is None:
+                 return 
+            
+            s3_key = result.get("s3_resume_key") # Use .get() for safety
 
-            # Extract resume text using pdfplumber
-            with pdfplumber.open(result.resume_path) as pdf:
-                resume_text = "\n\n".join(page.extract_text() for page in pdf.pages)
+            if not s3_key:
+                # Decide action: maybe embed without resume text, or just mark as failed?
+                # For now, let's try embedding without resume text
+                resume_text = "No resume file associated."
+                # Or raise an error if resume is mandatory:
+                # raise ValueError("Resume S3 key is missing for candidate.")
+            elif not s3_client or not bucket_name:
+                # Decide action: Embed without resume? Mark as failed?
+                resume_text = "Error: Could not access resume file storage."
+                # Or raise an error:
+                # raise ConnectionError("S3 client/config not available to download resume.")
+            else:
+                 # --- Download Resume from S3 ---
+                try:
+                    s3_response = s3_client.get_object(Bucket=bucket_name, Key=s3_key)
+                    # Read the PDF content into memory
+                    pdf_content_bytes = s3_response['Body'].read()
+                    # Create an in-memory file-like object
+                    pdf_file_like_object = io.BytesIO(pdf_content_bytes)
+                    
+                    # --- Extract resume text using pdfplumber ---
+                    # pdfplumber can open file-like objects
+                    with pdfplumber.open(pdf_file_like_object) as pdf:
+                        resume_text = "\n\n".join(page.extract_text() or "" for page in pdf.pages) # Handle None from extract_text
 
-            # Aggregate candidate data into a single string.
-            candidate_details = f"""
-            First Name: {result.first_name}
-            Last Name: {result.last_name}
-            Email: {result.email}
-            Phone Number: {result.phone_number}
-            Address: {json.dumps(result.address)}
-            Date of Birth: {result.date_of_birth}
-            Years of Experience: {result.years_of_experience}
-            Job Title: {result.job_title}
-            Work Experience: {json.dumps(result.work_experience)}
-            Education: {json.dumps(result.education)}
-            Skills: {json.dumps(result.skills)}
-            Certifications: {json.dumps(result.certifications)}
-            Resume Text: {resume_text}
-            """
+                except ClientError as e:
+                    # Decide action: embed without resume, mark as error?
+                    resume_text = f"Error: Could not download or process resume file from storage ({e.code})."
+                    # Or re-raise or handle specific codes like NoSuchKey
+                    # if e.response['Error']['Code'] == 'NoSuchKey': ...
+                except Exception:
+                     resume_text = "Error: Failed to process resume PDF content."
 
-            # Generate embedding
+
+            # --- Aggregate candidate data into a single string ---
+            # (Ensure all selected fields are accessed correctly from 'result' mapping)
+            candidate_details_list = []
+            for key, value in result.items():
+                 if key != "s3_resume_key": # Exclude the key itself
+                     # Handle potential JSON fields if they are still strings
+                     try:
+                         if isinstance(value, str) and key in ['address', 'work_experience', 'education', 'skills', 'certifications']:
+                              # Attempt to pretty-print if it's JSON-like string, otherwise use as is
+                              try: 
+                                   parsed_json = json.loads(value)
+                                   formatted_value = json.dumps(parsed_json, indent=2)
+                              except json.JSONDecodeError:
+                                   formatted_value = value # Use original string if not valid JSON
+                         else:
+                              formatted_value = value
+                         candidate_details_list.append(f"{key.replace('_', ' ').title()}: {formatted_value}")
+                     except Exception:
+                         candidate_details_list.append(f"{key.replace('_', ' ').title()}: {value}") # Fallback
+
+            candidate_details_list.append(f"Resume Text: {resume_text}")
+            candidate_details = "\n".join(candidate_details_list)
+            
+            # --- Generate embedding ---
+            # Consider loading the model outside the function if the task runs frequently
+            # Or ensure your environment handles model caching efficiently
             model = SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
             embedding_vector = model.encode(candidate_details).tolist()
 
-            # Update the candidate record with the embedding
+            # --- Update the candidate record with the embedding ---
             stmt = (
                 update(Candidate)
                 .where(Candidate.id == candidate_id)
-                .values(embedding=embedding_vector, is_embedding_ready=True)
+                .values(embedding=embedding_vector, is_embedding_ready=True) 
             )
             await db.execute(stmt)
             await db.commit()
 
-        except Exception as e:
-            # Rollback the transaction in case of an error
+        except Exception:
+            # Rollback the transaction in case of an error during processing/update
             await db.rollback()
-            raise e
-        finally:
-            # Ensure the session is closed
-            await db.close()
+            # Re-raising might cause issues depending on your background task runner
+            # Consider logging the error and returning, or marking the candidate as failed_embedding=True
+            # raise e 
+        # No finally block needed for closing 'db' when using 'async with SessionLocal() as db:'

@@ -14,6 +14,11 @@ class Config(BaseModel):
     REFRESH_TOKEN_DURATION: int
     SQLALCHEMY_DATABASE_URI: str
     OPEN_ROUTER_KEY: str
+    AWS_REGION: str
+    AWS_ACCESS_KEY_ID: str
+    AWS_SECRET_ACCESS_KEY: str
+    AWS_S3_BUCKET_NAME: str
+    API_BASE_URL: str
 
 
 config = Config(
@@ -24,4 +29,9 @@ config = Config(
     REFRESH_TOKEN_DURATION=int(os.getenv("REFRESH_TOKEN_DURATION", "0")),
     SQLALCHEMY_DATABASE_URI=os.getenv("SQLALCHEMY_DATABASE_URI", ""),
     OPEN_ROUTER_KEY=os.getenv("OPEN_ROUTER_KEY", ""),
+    AWS_REGION=os.getenv("AWS_REGION", ""),
+    AWS_ACCESS_KEY_ID=os.getenv("AWS_ACCESS_KEY_ID", ""),
+    AWS_SECRET_ACCESS_KEY=os.getenv("AWS_SECRET_ACCESS_KEY", ""),
+    AWS_S3_BUCKET_NAME=os.getenv("AWS_S3_BUCKET_NAME", ""),
+    API_BASE_URL=os.getenv("API_BASE_URL", "")
 )

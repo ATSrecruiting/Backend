@@ -13,3 +13,8 @@ class ListAttachments(BaseModel):
     uuid: UUID
     name: str
     url: str
+
+
+class GetFileURLResponse(BaseModel):
+    download_url: str
+    filename: str

@@ -1,5 +1,4 @@
 from uuid import UUID, uuid4
-from more_itertools import first
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
 from datetime import datetime, timezone
