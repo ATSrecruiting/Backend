@@ -38,7 +38,7 @@ jobs:
           context: . # Assumes Dockerfile is in the root directory
           file: ./Dockerfile # Explicit path to your Dockerfile
           push: true
-          tags: ghcr.io/ats-backend:latest
+          tags: ghcr.io/atsrecruiting/ats-backend:latest
           cache-from: type=gha # Enable build cache from GitHub Actions cache
           cache-to: type=gha,mode=max # Write build cache to GitHub Actions cache
 
@@ -54,7 +54,7 @@ jobs:
             # Variables
             # Define image name using variables substituted by GitHub Actions
             # IMPORTANT: Ensure this matches the 'tags:' field in the build step
-            IMAGE_NAME="ghcr.io/ats-backend:latest"
+            IMAGE_NAME="ghcr.io/atsrecruiting/ats-backend:latest"
             CONTAINER_NAME="atsBackend"
             # Define where the .env file should be placed on the EC2 instance
             ENV_FILE_PATH="/home/${{ secrets.EC2_USERNAME }}/app.env" # Ensure this user has write permission or adjust
