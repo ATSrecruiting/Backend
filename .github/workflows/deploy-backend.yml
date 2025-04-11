@@ -38,7 +38,7 @@ jobs:
           context: . # Assumes Dockerfile is in the root directory
           file: ./Dockerfile # Explicit path to your Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:latest
+          tags: ghcr.io/ats-backend:latest
           cache-from: type=gha # Enable build cache from GitHub Actions cache
           cache-to: type=gha,mode=max # Write build cache to GitHub Actions cache
 
