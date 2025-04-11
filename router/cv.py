@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from util.app_config import config # config has the env variable like this config.SQLALCHEMY_DATABASE_URI and all others
 import boto3
 from botocore.exceptions import ClientError
+from botocore.client import ClientCreator
 from util.s3 import get_s3_client
 import uuid
 import os
@@ -23,7 +24,7 @@ router = APIRouter()
 async def upload_resume_to_s3(
     file: UploadFile = File(...), 
     db: AsyncSession = Depends(get_db),
-    s3: boto3.client = Depends(get_s3_client) # Inject S3 client here!
+    s3: ClientCreator = Depends(get_s3_client) # Inject S3 client here!
 ):
     # Now use the injected 's3' variable instead of the global 's3_client'
     
@@ -66,7 +67,7 @@ async def upload_resume_to_s3(
         # --- Upload Temporary File to S3 ---
         try:
              # Use the injected 's3' client
-             s3.upload_file( 
+             s3.upload_file(  # type: ignore
                  temp_file_path, 
                  bucket_name, 
                  s3_object_key,

@@ -1,15 +1,19 @@
 from pydantic import BaseModel
 
 
-class LoginResponse(BaseModel):
+class LoginResponseBody(BaseModel):
     account_type: str
     access_token: str
-    refresh_token: str
+
 
 
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+
+class RefreshResponseBody(BaseModel):
+    access_token: str
 
 
 class GetLoggedUserResponse(BaseModel):

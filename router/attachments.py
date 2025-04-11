@@ -1,5 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, status
 from pathlib import Path
+
+from fastapi.responses import RedirectResponse
 from schema.attachments import AttachmentUploadResponse, GetFileURLResponse
 from db.models import Attachment
 from fastapi import Depends
@@ -18,7 +20,7 @@ router = APIRouter()
 async def upload_file_to_s3( # Renamed function for clarity and consistency
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    s3: boto3.client = Depends(get_s3_client) # Inject S3 client dependency
+    s3 = Depends(get_s3_client) # Inject S3 client dependency
 ):
     """
     Uploads a generic file to S3 and saves metadata to the database.
@@ -111,12 +113,13 @@ async def upload_file_to_s3( # Renamed function for clarity and consistency
 
 
 @router.get("/download_resume_url/{file_id}",
-            # response_model=GetFileURLResponse, # Use if you define the model
-            summary="Get a pre-signed URL to download a resume")
+            
+            summary="Get a pre-signed URL to download a resume",
+            status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 async def get_resume_download_url(
     file_id: str,
     db: AsyncSession = Depends(get_db),
-    s3: boto3.client = Depends(get_s3_client)
+    s3 = Depends(get_s3_client)
 ):
     """
     Retrieves a temporary, pre-signed URL for downloading a specific resume file.
@@ -143,7 +146,7 @@ async def get_resume_download_url(
         expiration = 3600 # e.g., 1 hour
 
         # Add ResponseContentDisposition to suggest filename to browser
-        response = s3.generate_presigned_url(
+        presigned_url:str = s3.generate_presigned_url(
             'get_object',
             Params={
                 'Bucket': bucket_name,
@@ -157,5 +160,9 @@ async def get_resume_download_url(
     except Exception:
          raise HTTPException(status_code=500, detail="An unexpected error occurred.")
 
-    return GetFileURLResponse(download_url=response, filename=original_filename)
+    # 4. Return a RedirectResponse
+    if not presigned_url:
+         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to generate download URL.")
+
+    return RedirectResponse(url=presigned_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
  

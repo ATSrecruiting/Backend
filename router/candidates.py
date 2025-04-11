@@ -76,7 +76,7 @@ async def update_personal_info(
             email=candidate_data.email,
             phone_number=candidate_data.phone_number,
             address=candidate_data.address.model_dump()
-            if candidate_data.address
+            if candidate_data.address 
             else None,
             date_of_birth=None,
             years_of_experience=candidate_data.years_of_experience,

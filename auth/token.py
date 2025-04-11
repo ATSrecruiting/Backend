@@ -71,3 +71,18 @@ def validate_token(token: str, secretKey: str, algorithm: str) -> Payload:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
         )
+
+
+
+def validate_refresh_token(
+    token: str, secretKey: str, algorithm: str
+) -> bool : 
+    """
+    Validate the refresh token
+    """
+    try:
+        payload = jwt.decode(token, secretKey, algorithms=[algorithm])
+        return True
+    except JWTError:
+        return False
+    
