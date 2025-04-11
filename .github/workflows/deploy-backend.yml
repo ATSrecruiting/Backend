@@ -29,18 +29,26 @@ jobs:
           # Use the GitHub Actor (username) associated with the PAT
           username: ${{ github.actor }}
           # Use a Personal Access Token (PAT) with packages read/write scope stored as a secret
-          password: ${{ secrets.GHCR_PAT }} 
+          password: ${{ secrets.GHCR_PAT }}
+
+      # --- New Step to Convert to Lowercase ---
+      - name: Set lower case owner and repo name
+        id: lowercaser # Give the step an ID to reference its outputs
+        run: |
+          echo "owner_lc=${{ github.repository_owner,, }}" >> $GITHUB_OUTPUT
+          echo "repo_lc=${{ github.event.repository.name,, }}" >> $GITHUB_OUTPUT
+        # This uses Bash parameter expansion to convert to lowercase [3, 6, 4]
+        # and writes the results to the step's outputs [3]
 
       - name: Build and push Docker image
         id: build-push
         uses: docker/build-push-action@v5
         with:
-          context: . # Assumes Dockerfile is in the root directory
-          file: ./Dockerfile # Explicit path to your Dockerfile
+          context:. # Assumes Dockerfile is in the root directory
+          file:./Dockerfile # Explicit path to your Dockerfile
           push: true
-          # Ensure the image name matches what's used in the deploy script
-          # ghcr.io/OWNER/REPO:latest (lowercase is enforced by GHCR)
-          tags: ghcr.io/${{ github.repository_owner | lowercase }}/${{ github.event.repository.name | lowercase }}:latest
+          # --- Updated tags to use lowercase outputs ---
+          tags: ghcr.io/${{ steps.lowercaser.outputs.owner_lc }}/${{ steps.lowercaser.outputs.repo_lc }}:latest
           cache-from: type=gha # Enable build cache from GitHub Actions cache
           cache-to: type=gha,mode=max # Write build cache to GitHub Actions cache
 
@@ -56,13 +64,15 @@ jobs:
             # Variables
             # Define image name using variables substituted by GitHub Actions
             # IMPORTANT: Ensure this matches the 'tags:' field in the build step
-            IMAGE_NAME="ghcr.io/${{ github.repository_owner | lowercase }}/${{ github.event.repository.name | lowercase }}:latest"
+            # --- Updated IMAGE_NAME to use lowercase outputs ---
+            IMAGE_NAME="ghcr.io/${{ steps.lowercaser.outputs.owner_lc }}/${{ steps.lowercaser.outputs.repo_lc }}:latest"
             CONTAINER_NAME="atsBackend"
-            # Define where the .env file should be placed on the EC2 instance
+            # Define where the.env file should be placed on the EC2 instance
             ENV_FILE_PATH="/home/${{ secrets.EC2_USERNAME }}/app.env" # Ensure this user has write permission or adjust
 
             echo "--- Logging into GHCR on EC2 ---"
             # Use the PAT stored in secrets for authentication on the EC2 instance
+            # Note: Ensure the actor name used here doesn't need lowercasing if it's part of the login command itself
             echo ${{ secrets.GHCR_PAT }} | sudo docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
             echo "--- Stopping existing container ($CONTAINER_NAME) ---"
@@ -84,7 +94,7 @@ jobs:
             cat <<EOF | sudo tee $ENV_FILE_PATH > /dev/null
             ${{ secrets.ENV_FILE_CONTENT }}
             EOF
-            # Secure the .env file permissions
+            # Secure the.env file permissions
             sudo chmod 600 $ENV_FILE_PATH
 
             echo "--- Running new container ($CONTAINER_NAME) ---"
