@@ -30,7 +30,6 @@ async def embed_candidates_data(candidate_id: int):
             # Rely on default config or IAM role
             s3_client = boto3.client('s3')
         
-        # Get Bucket Name
         bucket_name = getattr(config, 'AWS_S3_BUCKET_NAME', os.getenv('AWS_S3_BUCKET_NAME'))
         if not bucket_name:
              # Decide how to handle: return, raise, etc. For now, let it proceed to DB query.
