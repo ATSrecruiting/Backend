@@ -25,10 +25,10 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          # Use the default GITHUB_TOKEN for authentication within the same repo
+          # Use the GitHub Actor (username) associated with the PAT
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_PAT }}
-          
+          # Use a Personal Access Token (PAT) with packages read/write scope stored as a secret
+          password: ${{ secrets.GHCR_PAT }} 
 
       - name: Build and push Docker image
         id: build-push
@@ -37,8 +37,8 @@ jobs:
           context: . # Assumes Dockerfile is in the root directory
           file: ./Dockerfile # Explicit path to your Dockerfile
           push: true
-          # Ensure the image name is lowercase
-          # ghcr.io/OWNER/REPO:latest
+          # Ensure the image name matches what's used in the deploy script
+          # ghcr.io/OWNER/REPO:latest (lowercase is enforced by GHCR)
           tags: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:latest
           cache-from: type=gha # Enable build cache from GitHub Actions cache
           cache-to: type=gha,mode=max # Write build cache to GitHub Actions cache
@@ -53,19 +53,16 @@ jobs:
             # --- Deployment Script on EC2 ---
 
             # Variables
-            # Ensure image name uses lowercase owner/repo as used in the build step
-            IMAGE_NAME="ghcr.io/${{ github.repository_owner,, }}/${{ github.event.repository.name,, }}:latest"
+            # Define image name using variables substituted by GitHub Actions
+            # IMPORTANT: Ensure this matches the 'tags:' field in the build step
+            IMAGE_NAME="ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:latest" # FIXED: Removed ,,
             CONTAINER_NAME="atsBackend"
             # Define where the .env file should be placed on the EC2 instance
-            # Ensure the EC2_USERNAME has write permissions here or adjust the path/permissions
-            ENV_FILE_PATH="/home/${{ secrets.EC2_USERNAME }}/app.env" # Or e.g., /opt/myapp/app.env
+            ENV_FILE_PATH="/home/${{ secrets.EC2_USERNAME }}/app.env" # Ensure this user has write permission or adjust
 
             echo "--- Logging into GHCR on EC2 ---"
-            # Use the GITHUB_TOKEN passed via secrets context for EC2 login
-            # Note: GITHUB_TOKEN has limited permissions and expires. A PAT (secrets.GHCR_PAT) might be more robust for pulling.
+            # Use the PAT stored in secrets for authentication on the EC2 instance
             echo ${{ secrets.GHCR_PAT }} | sudo docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            # If using PAT:
-            # echo ${{ secrets.GHCR_PAT }} | sudo docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
 
             echo "--- Stopping existing container ($CONTAINER_NAME) ---"
             # Stop the container if it exists, ignore error if it doesn't
@@ -80,16 +77,14 @@ jobs:
 
             echo "--- Creating environment file ($ENV_FILE_PATH) ---"
             # Use 'cat <<EOF' to handle multi-line secrets properly
-            # Ensure the target directory exists if ENV_FILE_PATH is not in the user's home
-            # sudo mkdir -p $(dirname $ENV_FILE_PATH) # Uncomment if needed
-            # sudo chown ${{ secrets.EC2_USERNAME }}:${{ secrets.EC2_USERNAME }} $(dirname $ENV_FILE_PATH) # Uncomment if needed
+            # Ensure the target directory exists and has correct permissions if needed
+            # sudo mkdir -p $(dirname $ENV_FILE_PATH)
+            # sudo chown ${{ secrets.EC2_USERNAME }}:${{ secrets.EC2_USERNAME }} $(dirname $ENV_FILE_PATH)
             cat <<EOF | sudo tee $ENV_FILE_PATH > /dev/null
             ${{ secrets.ENV_FILE_CONTENT }}
             EOF
-            # Optional: Secure the .env file permissions
+            # Secure the .env file permissions
             sudo chmod 600 $ENV_FILE_PATH
-            # Ensure the user running docker can read it, or adjust ownership if needed
-            # sudo chown some_user:some_group $ENV_FILE_PATH # If needed
 
             echo "--- Running new container ($CONTAINER_NAME) ---"
             sudo docker run -d \
