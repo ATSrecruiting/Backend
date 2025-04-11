@@ -40,7 +40,7 @@ jobs:
           push: true
           # Ensure the image name matches what's used in the deploy script
           # ghcr.io/OWNER/REPO:latest (lowercase is enforced by GHCR)
-          tags: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:latest
+          tags: ghcr.io/${{ github.repository_owner | lowercase }}/${{ github.event.repository.name | lowercase }}:latest
           cache-from: type=gha # Enable build cache from GitHub Actions cache
           cache-to: type=gha,mode=max # Write build cache to GitHub Actions cache
 
@@ -56,7 +56,7 @@ jobs:
             # Variables
             # Define image name using variables substituted by GitHub Actions
             # IMPORTANT: Ensure this matches the 'tags:' field in the build step
-            IMAGE_NAME="ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:latest" # FIXED: Removed ,,
+            IMAGE_NAME="ghcr.io/${{ github.repository_owner | lowercase }}/${{ github.event.repository.name | lowercase }}:latest"
             CONTAINER_NAME="atsBackend"
             # Define where the .env file should be placed on the EC2 instance
             ENV_FILE_PATH="/home/${{ secrets.EC2_USERNAME }}/app.env" # Ensure this user has write permission or adjust
