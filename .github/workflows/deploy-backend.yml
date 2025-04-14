@@ -36,8 +36,6 @@ jobs:
           file: ./Dockerfile # Explicit path to your Dockerfile
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/ats-backend:latest
-          cache-from: type=gha # Enable build cache from GitHub Actions cache
-          cache-to: type=gha,mode=max # Write build cache to GitHub Actions cache
 
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3 # Use a specific version tag
