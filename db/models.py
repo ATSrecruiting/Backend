@@ -79,7 +79,7 @@ class Session(Base):
         DateTime(timezone=True), nullable=False, default=datetime.utcnow
     )
     user_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("users.id"), nullable=False
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
 
     # Relationship
@@ -91,7 +91,7 @@ class Recruiter(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id"), unique=True, index=True
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True
     )
     first_name: Mapped[str] = mapped_column(String, nullable=True)
     last_name: Mapped[str] = mapped_column(String, nullable=True)
@@ -109,7 +109,7 @@ class Candidate(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id"), unique=True, index=True
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True
     )
     first_name: Mapped[str] = mapped_column(String, nullable=True)
     last_name: Mapped[str] = mapped_column(String, nullable=True)
@@ -147,7 +147,7 @@ class Vacancy(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     recruiter_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("recruiters.id"), index=True
+        Integer, ForeignKey("recruiters.id", ondelete="CASCADE"), index=True
     )
     title: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str] = mapped_column(String, nullable=False)
@@ -172,7 +172,7 @@ class TempChatSession(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
     )
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
     candidates: Mapped[dict] = mapped_column(JSONB, nullable=True)
 
 
@@ -181,7 +181,7 @@ class ChatSession(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
     )
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=datetime.now(timezone.utc)
     )
@@ -195,7 +195,7 @@ class ChatMessages(Base):
     __tablename__ = "chat_messages"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     chat_session_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("chat_sessions.id"), index=True
+        UUID(as_uuid=True), ForeignKey("chat_sessions.id", ondelete="CASCADE"), index=True
     )
     sender: Mapped[str] = mapped_column(String, nullable=False)
     content: Mapped[str] = mapped_column(String, nullable=False)
