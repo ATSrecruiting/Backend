@@ -22,27 +22,22 @@ async def embed_candidates_data(candidate_id: int):
     # --- Initialize S3 client within the task ---
     # We need a client instance here, separate from FastAPI's request lifecycle.
     s3_client = None
+    print ("starting background task")
     try:
-        aws_region = getattr(config, 'AWS_REGION', os.getenv('AWS_REGION'))
+        aws_region = getattr(config, 'AWS_REGION')
         if aws_region:
             s3_client = boto3.client('s3', region_name=aws_region)
         else:
             # Rely on default config or IAM role
             s3_client = boto3.client('s3')
         
-        bucket_name = getattr(config, 'AWS_S3_BUCKET_NAME', os.getenv('AWS_S3_BUCKET_NAME'))
+        bucket_name = getattr(config, 'AWS_S3_BUCKET_NAME')
         if not bucket_name:
-             # Decide how to handle: return, raise, etc. For now, let it proceed to DB query.
-             # The check later will catch if resume_path exists but download fails.
              pass 
 
     except (BotoCoreError, ClientError, Exception) as e:
         raise ValueError(f"Failed to create S3 client: {e}")
-        # Depending on requirements, you might want to stop the task here
-        # return 
 
-    # --- Database Operations ---
-    # Create a new database session for the background task
     async with SessionLocal() as db:
         try:
             # Query candidate and resume data (resume_path is now the S3 key)
@@ -129,7 +124,7 @@ async def embed_candidates_data(candidate_id: int):
             candidate_details_list.append(f"Resume Text: {resume_text}")
             candidate_details = "\n".join(candidate_details_list)
             
-            print("here")
+            print ("starting embedding")
             model = SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
             embedding_vector = model.encode(candidate_details).tolist()
 

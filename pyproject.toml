@@ -10,6 +10,7 @@ dependencies = [
     "boto3>=1.37.17",
     "faker>=36.1.0",
     "fastapi>=0.115.8",
+    "google-genai>=1.10.0",
     "greenlet>=3.1.1",
     "httpx>=0.28.1",
     "jose>=1.0.0",
