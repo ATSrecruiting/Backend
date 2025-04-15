@@ -1,4 +1,5 @@
 from http import client
+import types
 import pdfplumber
 from sqlalchemy import update
 from sqlalchemy.sql.expression import select
@@ -14,6 +15,7 @@ from util.app_config import config
 import os
 import io
 from google import genai
+from google.genai import types
 
 
 async def embed_candidates_data(candidate_id: int):
@@ -127,14 +129,13 @@ async def embed_candidates_data(candidate_id: int):
             candidate_details_list.append(f"Resume Text: {resume_text}")
             candidate_details = "\n".join(candidate_details_list)
             
-            print ("starting embedding")
             client = genai.Client(api_key= config.GEMINI_API_KEY)
             embedding_vector = client.models.embed_content(
                 model="gemini-embedding-exp-03-07",
                 contents=[candidate_details],
+                config= types.EmbedContentConfig(task_type="SEMANTIC_SIMILARITY")
             ).embeddings
-            embedding_values = embedding_vector[0].values
-            print (f"embedding done", embedding_vector)
+            embedding_values = embedding_vector[0].values # type: ignore
 
             # --- Update the candidate record with the embedding ---
             stmt = (

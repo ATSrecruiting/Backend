@@ -34,6 +34,9 @@ import json
 from typing import Dict
 from uuid import UUID
 from sqlalchemy import update
+from google import genai
+from google.genai import types
+from util.app_config import config
 
 
 router = APIRouter(prefix="/candidates")
@@ -208,8 +211,13 @@ async def similarity_search(
     pagination: Pagination = Depends(),
 ):
     try:
-        model = SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
-        query_embedding = model.encode(search).tolist()
+        client = genai.Client(api_key= config.GEMINI_API_KEY)
+        embedding_vector = client.models.embed_content(
+                model="gemini-embedding-exp-03-07",
+                contents=[search],
+                config= types.EmbedContentConfig(task_type="SEMANTIC_SIMILARITY")
+            ).embeddings
+        query_embedding = embedding_vector[0].values # type: ignore
         stmt = (
             select(Candidate)
             .order_by(Candidate.embedding.cosine_distance(query_embedding))
