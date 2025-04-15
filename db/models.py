@@ -130,7 +130,7 @@ class Candidate(Base):
     resume_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("attachments.id"), nullable=True
     )
-    embedding: Mapped[list[float]] = mapped_column(Vector(768), nullable=True)
+    embedding: Mapped[list[float]] = mapped_column(Vector(3072), nullable=True)
     is_embedding_ready: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False
     )

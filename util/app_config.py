@@ -19,6 +19,7 @@ class Config(BaseModel):
     AWS_SECRET_ACCESS_KEY: str
     AWS_S3_BUCKET_NAME: str
     API_BASE_URL: str
+    GEMINI_API_KEY: str
 
 
 config = Config(
@@ -33,5 +34,6 @@ config = Config(
     AWS_ACCESS_KEY_ID=os.getenv("AWS_ACCESS_KEY_ID", ""),
     AWS_SECRET_ACCESS_KEY=os.getenv("AWS_SECRET_ACCESS_KEY", ""),
     AWS_S3_BUCKET_NAME=os.getenv("AWS_S3_BUCKET_NAME", ""),
-    API_BASE_URL=os.getenv("API_BASE_URL", "")
+    API_BASE_URL=os.getenv("API_BASE_URL", ""),
+    GEMINI_API_KEY=os.getenv("GEMINI_API_KEY", ""),
 )

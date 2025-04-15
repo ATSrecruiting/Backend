@@ -1,6 +1,8 @@
+from http import client
 import pdfplumber
 from sqlalchemy import update
 from sqlalchemy.sql.expression import select
+from torch import embedding
 from db.models import Candidate
 from db.models import Attachment
 import json
@@ -11,6 +13,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from util.app_config import config
 import os
 import io
+from google import genai
 
 
 async def embed_candidates_data(candidate_id: int):
@@ -125,19 +128,25 @@ async def embed_candidates_data(candidate_id: int):
             candidate_details = "\n".join(candidate_details_list)
             
             print ("starting embedding")
-            model = SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
-            embedding_vector = model.encode(candidate_details).tolist()
+            client = genai.Client(api_key= config.GEMINI_API_KEY)
+            embedding_vector = client.models.embed_content(
+                model="gemini-embedding-exp-03-07",
+                contents=[candidate_details],
+            ).embeddings
+            embedding_values = embedding_vector[0].values
+            print (f"embedding done", embedding_vector)
 
             # --- Update the candidate record with the embedding ---
             stmt = (
                 update(Candidate)
                 .where(Candidate.id == candidate_id)
-                .values(embedding=embedding_vector, is_embedding_ready=True) 
+                .values(embedding=embedding_values, is_embedding_ready=True) 
             )
             await db.execute(stmt)
             await db.commit()
 
-        except Exception:
+        except Exception as e:
+            print(f"Error processing candidate {candidate_id}: {e}")
             
             await db.rollback()
 

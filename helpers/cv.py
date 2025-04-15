@@ -1,6 +1,7 @@
 import pdfplumber
 import httpx
 from util.app_config import config
+from datetime import datetime
 
 
 async def process_cv_async(file_path) -> str:
@@ -10,24 +11,24 @@ async def process_cv_async(file_path) -> str:
             docs_content = "\n\n".join(page.extract_text() for page in pdf.pages)
 
         api_key = config.OPEN_ROUTER_KEY
-        print(api_key)
-        prompt = f"""You will be given a CV. Extract the following information and structure it into a JSON object. Do not output any additional text or explanations—only the JSON object. If any information is missing or cannot be found, use `null` as the value.
 
-            Here is the structure of the JSON object you must return:
-            ```json
-            {{
-            "first_name": "First Name",
-            "last_name": "Last Name",
-            "email": "Email",
-            "phone_number": "Phone Number",
-            "address": {{
+        current_date = datetime.now()
+        prompt = f"""You are a precise CV information extraction specialist. Extract the following information from the provided CV and structure it exactly into the specified JSON format. Return only the JSON object without any additional text or explanations.
+
+        The JSON structure must be EXACTLY as follows:
+        {{
+        "first_name": "First Name",
+        "last_name": "Last Name",
+        "email": "Email",
+        "phone_number": "Phone Number",
+        "address": {{
             "street": "Street Address",
             "country": "Country"
-            }},
-            "date_of_birth": "Date of Birth (YYYY-MM-DD)",
-            "years_of_experience": "Total Years of Experience (calculated as of January 2025, the way you calculate it is for each job experience you do end date minus start date which gives you a duration the you summ all the durations)",
-            "job_title": "Current Job Title",
-            "work_experience": [
+        }},
+        "date_of_birth": "Date of Birth (YYYY-MM-DD)",
+        "years_of_experience": "Total Years of Experience (calculated as of {current_date.strftime('%B %Y')}, the way you calculate it is for each job experience you do end date minus start date which gives you a duration then you sum all the durations)",
+        "job_title": "Current Job Title",
+        "work_experience": [
             {{
             "title": "Job Title",
             "company": "Company Name",
@@ -35,16 +36,16 @@ async def process_cv_async(file_path) -> str:
             "end_date": "End Date (YYYY-MM or 'Present')",
             "location": "Location"
             }}
-            ],
-            "education": [
+        ],
+        "education": [
             {{
             "degree": "Degree",
             "major": "Major",
             "school": "School Name",
             "graduation_date": "Graduation Date (YYYY)"
             }}
-            ],
-            "skills": {{
+        ],
+        "skills": {{
             "general_skills": ["List of general skills"],
             "technical_skills": ["List of technical skills"],
             "languages": [
@@ -53,20 +54,29 @@ async def process_cv_async(file_path) -> str:
                 "level": "Proficiency Level"
             }}
             ]
-            }},
-            "certifications": [
+        }},
+        "certifications": [
             {{
             "certifier": "Certifier Name",
             "certification_name": "Certification Name"
             }}
-            ]
-            }}
-            Now, here is the CV:
-            {docs_content}
+        ]
+        }}
 
-            Return only the JSON object as described above. Do not include any additional text or explanations.
+        Important extraction guidelines:
+        1. Follow the exact JSON schema structure provided above.
+        2. For years_of_experience: Calculate precisely by summing the duration of all work experiences (end_date - start_date) through {current_date.strftime('%B %Y')}. For current positions, use {current_date.strftime('%B %Y')} as the end date.
+        3. Extract dates consistently: YYYY-MM for work experience dates, YYYY for graduation dates, and YYYY-MM-DD for date of birth.
+        4. Use "null" (without quotes) for any information that cannot be found in the CV.
+        5. For work_experience, education, skills, and certifications, include all entries found in the CV.
+        6. For current positions, use "Present" as the end_date value.
+        7. Ensure all fields are properly populated with the correct information types.
+        8. Do not add explanations, notes or any text outside the JSON structure.
+        9. Carefully check the JSON formatting to ensure it is valid and properly nested.
 
-            """
+        CV content:
+        {docs_content}
+        """
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
