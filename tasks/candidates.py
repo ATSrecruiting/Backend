@@ -101,15 +101,13 @@ async def embed_candidates_data(candidate_id: int):
 
                 except ClientError as e:
                     # Decide action: embed without resume, mark as error?
-                    resume_text = f"Error: Could not download or process resume file from storage ({e.code})."
+                    resume_text = f"Error: Could not download or process resume file from storage ({e})."
                     # Or re-raise or handle specific codes like NoSuchKey
                     # if e.response['Error']['Code'] == 'NoSuchKey': ...
                 except Exception:
                      resume_text = "Error: Failed to process resume PDF content."
 
 
-            # --- Aggregate candidate data into a single string ---
-            # (Ensure all selected fields are accessed correctly from 'result' mapping)
             candidate_details_list = []
             for key, value in result.items():
                  if key != "s3_resume_key": # Exclude the key itself
@@ -131,9 +129,7 @@ async def embed_candidates_data(candidate_id: int):
             candidate_details_list.append(f"Resume Text: {resume_text}")
             candidate_details = "\n".join(candidate_details_list)
             
-            # --- Generate embedding ---
-            # Consider loading the model outside the function if the task runs frequently
-            # Or ensure your environment handles model caching efficiently
+            print("here")
             model = SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
             embedding_vector = model.encode(candidate_details).tolist()
 
@@ -147,9 +143,6 @@ async def embed_candidates_data(candidate_id: int):
             await db.commit()
 
         except Exception:
-            # Rollback the transaction in case of an error during processing/update
+            
             await db.rollback()
-            # Re-raising might cause issues depending on your background task runner
-            # Consider logging the error and returning, or marking the candidate as failed_embedding=True
-            # raise e 
-        # No finally block needed for closing 'db' when using 'async with SessionLocal() as db:'
+
