@@ -120,7 +120,7 @@ class Candidate(Base):
     years_of_experience: Mapped[int] = mapped_column(Integer, nullable=True)
     job_title: Mapped[str] = mapped_column(String, nullable=True)
     work_experience: Mapped[list[dict]] = mapped_column(JSONB, nullable=True)
-    education: Mapped[dict] = mapped_column(JSONB, nullable=True)
+    education: Mapped[list[dict]] = mapped_column(JSONB, nullable=True)
     skills: Mapped[dict] = mapped_column(JSONB, nullable=True)
     certifications: Mapped[list[dict]] = mapped_column(JSONB, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=True, default="applied")

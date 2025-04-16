@@ -10,6 +10,7 @@ from auth.password import hash_password
 
 from schema.candidates import (
     Address,
+    Education,
     GetCandidatePersonalInfo,
     GetCandidateWorkExperience,
     ListCandidatesFromSessionIdResponse,
@@ -17,6 +18,8 @@ from schema.candidates import (
     RegisterCandidateResponse,
     CVData,
     ListCandidatesResponse,
+    UnVerifyEducationResponse,
+    VerifyEducationResponse,
     VerifyWorkExperienceResponse,
     WorkExperience,
     VerificationDetail,
@@ -667,6 +670,222 @@ async def unverify_work_experience(
         # Rollback transaction on any other unexpected error
         await db.rollback()
         # Log the error in a real application: logger.error(f"...", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected internal server error occurred during unverification.",
+        )
+
+
+
+
+
+@router.put(
+    "/{candidate_id}/education/{edu_id}/verify",
+    response_model=VerifyEducationResponse,
+)
+async def verify_education(
+    candidate_id: int,
+    edu_id: str,
+    dbps: Tuple[User, AsyncSession] = Depends(get_current_user),
+):
+    user, db = dbps
+    recruiter_id = None
+
+    try:
+        if user.account_type != "recruiter" or user.recruiter is None:
+            raise HTTPException(
+                status_code=403, detail="Unauthorized access: User is not a recruiter."
+            )
+        recruiter_id = user.recruiter.id
+
+        result = await db.execute(
+            select(Candidate).filter(Candidate.id == candidate_id)
+        )
+        candidate = result.scalar_one_or_none()
+
+        if candidate is None:
+            raise HTTPException(status_code=404, detail="Candidate not found")
+        
+        if candidate.education is None:
+            candidate.education = []
+        
+        education_data: List[Education] = []
+        try:
+            education_data = [
+                Education.model_validate(json.loads(edu))
+                if isinstance(edu, str)
+                else Education.model_validate(edu)
+                for edu in candidate.education
+            ]
+        except Exception:
+            raise HTTPException(
+                status_code=500,
+                detail="Error validating stored education data.",
+            )
+        if not education_data:
+            raise HTTPException(
+                status_code=404,
+                detail="Education list is empty for this candidate.",
+            )
+        
+        target_edu: Optional[Education] = None
+        for edu in education_data:
+            if str(edu.id) == edu_id:
+                target_edu = edu
+                break
+        if target_edu is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Education with ID {edu_id} not found for this candidate.",
+            )
+        
+        already_verified = False
+        for verification in target_edu.verifications:
+            if verification.recruiter_id == recruiter_id:
+                already_verified = True
+                break
+        
+        if not already_verified:
+            new_verification = VerificationDetail(recruiter_id=recruiter_id)
+            target_edu.verifications.append(new_verification)
+
+            updated_education_json = [
+                edu.model_dump_json() for edu in education_data
+            ]
+
+            await db.execute(
+                update(Candidate)
+                .where(Candidate.id == candidate_id)
+                .values(
+                    education=updated_education_json
+                )
+            )
+            await db.commit()
+
+            return VerifyEducationResponse(
+                education_id=edu_id,
+                recruiter_id=recruiter_id,
+                message="Education verified successfully.",
+            )
+        else:
+            return VerifyEducationResponse(
+                education_id=edu_id,
+                recruiter_id=recruiter_id,
+                message="Education was already verified by this recruiter.",
+            )
+        
+    except HTTPException:
+        raise
+    except Exception:
+        await db.rollback()
+        raise HTTPException(
+            status_code=500, detail="An unexpected internal server error occurred."
+        )
+
+        
+@router.put(
+    "/{candidate_id}/education/{edu_id}/unverify",
+    response_model=UnVerifyEducationResponse,
+)
+async def unverify_education(
+    candidate_id: int,
+    edu_id: str,
+    dbps: Tuple[User, AsyncSession] = Depends(get_current_user),
+):
+    user, db = dbps
+    recruiter_id = None
+
+    try:
+        if user.account_type != "recruiter" or user.recruiter is None:
+            raise HTTPException(
+                status_code=403, detail="Unauthorized access: User is not a recruiter."
+            )
+        recruiter_id = user.recruiter.id
+
+        result = await db.execute(
+            select(Candidate).filter(Candidate.id == candidate_id)
+        )
+        candidate = result.scalar_one_or_none()
+
+        if candidate is None:
+            raise HTTPException(status_code=404, detail="Candidate not found")
+        
+        if candidate.education is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Education list is empty for this candidate.",
+            )
+
+        education_data: List[Education] = []
+        try:
+            education_data = [
+                Education.model_validate(json.loads(edu))
+                if isinstance(edu, str)
+                else Education.model_validate(edu)
+                for edu in candidate.education
+            ]
+        except Exception:
+            raise HTTPException(
+                status_code=500,
+                detail="Error validating stored education data.",
+            )
+        
+        target_edu: Optional[Education] = None
+        target_edu_index: Optional[int] = None
+        for index, edu in enumerate(education_data):
+            if str(edu.id) == str(edu_id):
+                target_edu = edu
+                target_edu_index = index
+                break
+        
+        if target_edu is None or target_edu_index is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Education with ID {edu_id} not found for this candidate.",
+            )
+        
+        initial_verifications_count = len(target_edu.verifications)
+
+        original_verifications = target_edu.verifications
+        target_edu.verifications = [
+            verification
+            for verification in original_verifications
+            if verification.recruiter_id != recruiter_id
+        ]
+
+        verifications_removed = (
+            len(target_edu.verifications) < initial_verifications_count
+        )
+
+        if verifications_removed:
+            education_data[target_edu_index] = target_edu
+
+            updated_education_json = [
+                edu.model_dump_json() for edu in education_data
+            ]
+            await db.execute(
+                update(Candidate)
+                .where(Candidate.id == candidate_id)
+                .values(
+                    education=updated_education_json
+                )
+            )
+            await db.commit()
+            return UnVerifyEducationResponse(
+                education_id=edu_id,
+                recruiter_id=recruiter_id,
+                message="Education verification removed successfully.",
+            )
+        else:
+            return UnVerifyEducationResponse(
+                education_id=edu_id,
+                recruiter_id=recruiter_id,
+                message="Education was not previously verified by this recruiter. No changes made.",
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        await db.rollback()
         raise HTTPException(
             status_code=500,
             detail="An unexpected internal server error occurred during unverification.",

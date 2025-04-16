@@ -166,3 +166,15 @@ class UnverifyWorkExperienceResponse(BaseModel):
     work_experience_id: str
     recruiter_id: int
     message: str
+
+
+class VerifyEducationResponse(BaseModel):
+    education_id: str
+    recruiter_id: int
+    message: str = "Education verified successfully."
+
+
+class UnVerifyEducationResponse(BaseModel):
+    education_id: str
+    recruiter_id: int
+    message: str = "Education verified successfully."
