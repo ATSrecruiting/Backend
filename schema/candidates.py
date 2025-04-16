@@ -1,4 +1,3 @@
-from tkinter import NO
 from uuid import UUID, uuid4
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
