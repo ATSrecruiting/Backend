@@ -92,7 +92,7 @@ async def send_message(
     for candidate in candidates_objs:
         resume_access_url = None
         if candidate.resume and candidate.resume.id:
-            resume_access_url = f"{config.API_BASE_URL}/download_resume_url/{candidate.resume.id}"
+            resume_access_url = f"{config.API_BASE_URL}/downloadresumeurl/{candidate.resume.id}"
         else:
             resume_access_url = "No resume file associated."
         candidates_data.append(

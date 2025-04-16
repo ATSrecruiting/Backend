@@ -1,7 +1,10 @@
+from tkinter import NO
 from uuid import UUID, uuid4
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
 from datetime import datetime, timezone
+
+from sympy import N
 
 
 class RegisterCandidateRequest(BaseModel):
@@ -130,10 +133,6 @@ class GetCandidatePersonalInfo(BaseModel):
     years_of_experience: Optional[float] = None
 
 
-class WorkExpAttachment(BaseModel):
-    file_path: str
-    filename: str
-
 
 class VerificationDetailResponse(BaseModel):
     recruiter_id: int
@@ -148,7 +147,7 @@ class GetCandidateWorkExperience(BaseModel):
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     location: Optional[str] = None
-    attachments: List[WorkExpAttachment] = Field(default_factory=list)
+    attachments: List[UUID] | None 
 
     # Use the response model that includes the name
     verifications: List[VerificationDetailResponse] = Field(default_factory=list)

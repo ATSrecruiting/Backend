@@ -1,3 +1,4 @@
+from typing import List
 from pydantic import BaseModel
 from uuid import UUID
 
@@ -15,6 +16,12 @@ class ListAttachments(BaseModel):
     url: str
 
 
+class GetFileURLRequest(BaseModel):
+    attachments_ids: List[UUID]
+
+
+
 class GetFileURLResponse(BaseModel):
     download_url: str
     filename: str
+    file_id: UUID

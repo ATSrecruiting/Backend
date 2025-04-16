@@ -18,7 +18,6 @@ from schema.candidates import (
     CVData,
     ListCandidatesResponse,
     VerifyWorkExperienceResponse,
-    WorkExpAttachment,
     WorkExperience,
     VerificationDetail,
     VerificationDetailResponse,
@@ -326,40 +325,14 @@ async def get_candidate_work_experience(
             return []
 
         # 3. Collect unique Attachment IDs and Recruiter IDs
-        all_attachment_ids = set()
         all_recruiter_ids = set()
         for exp in validated_work_experiences:
-            if exp.attachment_ids:
-                all_attachment_ids.update(exp.attachment_ids)
             # Collect recruiter IDs from the *stored* VerificationDetail objects
             if exp.verifications:
                 for verification in exp.verifications:
                     all_recruiter_ids.add(verification.recruiter_id)  # Add recruiter_id
 
-        # 4. Fetch Attachments (same efficient logic as before)
-        attachment_dict = {}
-        if all_attachment_ids:
-            # ... (attachment fetching logic remains the same) ...
-            try:
-                typed_attachment_ids = [UUID(str(id_)) for id_ in all_attachment_ids]
-            except ValueError:
-                raise HTTPException(
-                    status_code=400, detail="Invalid attachment ID format found."
-                )
-
-            attachment_result = await db.execute(
-                select(Attachment.id, Attachment.file_path, Attachment.filename).filter(
-                    Attachment.id.in_(typed_attachment_ids)
-                )
-            )
-            attachments_data = attachment_result.all()
-
-            for att in attachments_data:
-                attachment_dict[str(att.id)] = {
-                    "file_path": att.file_path,
-                    "filename": att.filename,
-                }
-
+    
         # 5. Fetch Recruiter Names (NEW LOGIC)
         recruiter_name_dict: Dict[int, str] = {}
         if all_recruiter_ids:
@@ -388,21 +361,6 @@ async def get_candidate_work_experience(
         # 6. Process validated experiences and build the final response
         response_work_experiences: List[GetCandidateWorkExperience] = []
         for exp in validated_work_experiences:
-            # Build attachments list (same as before)
-            exp_attachments = []
-            if exp.attachment_ids:
-                for attachment_id in exp.attachment_ids:
-                    att_id_str = str(attachment_id)
-                    if att_id_str in attachment_dict:
-                        # ... (append WorkExpAttachment) ...
-                        att_data = attachment_dict[att_id_str]
-                        exp_attachments.append(
-                            WorkExpAttachment(
-                                file_path=att_data["file_path"],
-                                filename=att_data["filename"],
-                            )
-                        )
-
             # Build verifications list including names (NEW)
             exp_verifications_response = []
             if exp.verifications:
@@ -429,7 +387,7 @@ async def get_candidate_work_experience(
                     start_date=exp.start_date,
                     end_date=exp.end_date,
                     location=exp.location,
-                    attachments=exp_attachments,
+                    attachments=exp.attachment_ids,
                     verifications=exp_verifications_response,  # Use the list with names
                 )
             )

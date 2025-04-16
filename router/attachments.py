@@ -1,8 +1,10 @@
+from typing import List
 from fastapi import APIRouter, UploadFile, File, HTTPException, status
 from pathlib import Path
 
 from fastapi.responses import RedirectResponse
-from schema.attachments import AttachmentUploadResponse, GetFileURLResponse
+from sqlalchemy import select
+from schema.attachments import AttachmentUploadResponse, GetFileURLRequest, GetFileURLResponse
 from db.models import Attachment
 from fastapi import Depends
 from db.session import get_db
@@ -112,7 +114,7 @@ async def upload_file_to_s3( # Renamed function for clarity and consistency
 
 
 
-@router.get("/download_resume_url/{file_id}",
+@router.get("/downloadresumeurl/{file_id}",
             
             summary="Get a pre-signed URL to download a resume",
             status_code=status.HTTP_307_TEMPORARY_REDIRECT)
@@ -165,4 +167,57 @@ async def get_resume_download_url(
          raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to generate download URL.")
 
     return RedirectResponse(url=presigned_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+
+
+
+
+@router.post("/batch_download"
+              , response_model=List[GetFileURLResponse])
+async def batch_download_files(
+    request_body: GetFileURLRequest,
+    db: AsyncSession = Depends(get_db),
+    s3 = Depends(get_s3_client)):
+    """
+    Retrieves a list of pre-signed URLs for downloading multiple files.
+    """
  
+    bucket_name = config.AWS_S3_BUCKET_NAME
+    if not bucket_name:
+        raise HTTPException(status_code=500, detail="S3 bucket configuration missing.")
+    
+    stmt = select(Attachment).where(Attachment.id.in_(request_body.attachments_ids))
+    result = await db.execute(stmt)
+    db_files = result.scalars().all()
+
+    if not db_files:
+        raise HTTPException(status_code=404, detail="No files found for the provided IDs.")
+    
+    # 2. Generate pre-signed URLs for each file
+    file_urls = []
+    for db_file in db_files:
+        s3_object_key = db_file.file_path
+        original_filename = db_file.filename
+
+        try:
+            expiration = 3600  # e.g., 1 hour
+            presigned_url = s3.generate_presigned_url(
+                'get_object',
+                Params={
+                    'Bucket': bucket_name,
+                    'Key': s3_object_key,
+                    'ResponseContentDisposition': f'attachment; filename="{original_filename}"'
+                },
+                ExpiresIn=expiration
+            )
+        except ClientError:
+            raise HTTPException(status_code=500, detail="Could not generate download link.")
+        except Exception:
+            raise HTTPException(status_code=500, detail="An unexpected error occurred.")
+
+        file_urls.append(GetFileURLResponse(
+            download_url=presigned_url,
+            filename=db_file.filename,
+            file_id=db_file.id
+        ))
+    # 3. Return the list of file URLs
+    return file_urls
