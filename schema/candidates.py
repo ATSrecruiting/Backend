@@ -53,6 +53,7 @@ class Education(BaseModel):
     school: Optional[str] = None
     graduation_date: Optional[str] = None  # Optional: can be null
     attachment_id: Optional[List[UUID]] = None  # Optional: can be null
+    verifications: List[VerificationDetail] = Field(default_factory=list)
 
 
 class Language(BaseModel):
@@ -71,6 +72,8 @@ class Certification(BaseModel):
     certifier: Optional[str] = None
     certification_name: Optional[str] = None
     attachment_id: Optional[List[UUID]] = None  # Optional: can be null
+
+    verifications: List[VerificationDetail] = Field(default_factory=list)
 
 
 class CVData(BaseModel):
