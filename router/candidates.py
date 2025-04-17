@@ -11,6 +11,7 @@ from auth.password import hash_password
 from schema.candidates import (
     Address,
     Education,
+    GetCandidateEducation,
     GetCandidatePersonalInfo,
     GetCandidateWorkExperience,
     ListCandidatesFromSessionIdResponse,
@@ -167,6 +168,107 @@ async def list_candidates(
         raise HTTPException(
             status_code=500, detail=f"Error fetching candidates: {str(e)}"
         )
+    
+
+@router.get("/{candidate_id}/education", response_model=List[GetCandidateEducation])
+async def get_candidate_education(
+    candidate_id: int, db: AsyncSession = Depends(get_db)
+):
+    try : 
+        result = await db.execute(
+            select(Candidate.education).filter(Candidate.id == candidate_id).limit(1)
+        )
+        raw_education_list = result.scalar_one_or_none()
+
+        if raw_education_list is None:
+            candidate_exists_result = await db.execute(
+                select(Candidate.id).filter(Candidate.id == candidate_id).limit(1)
+            )
+            if candidate_exists_result.scalar_one_or_none() is None:
+                raise HTTPException(status_code=404, detail="Candidate not found")
+            else:
+                return []
+        
+        # Validate data structure using Pydantic (Education model)
+        validated_education: List[Education] = []
+        if isinstance(raw_education_list, list):
+            try:
+                validated_education = [
+                    Education.model_validate(json.loads(edu))
+                    if isinstance(edu, str)
+                    else Education.model_validate(edu)
+                    for edu in raw_education_list
+                ]
+            except Exception:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Error validating stored education data.",
+                )
+        else:
+            return []
+        
+        if not validated_education:
+            return []
+        
+        
+        all_recruiter_ids = set()
+        for edu in validated_education:
+            if edu.verifications:
+                for verification in edu.verifications:
+                    all_recruiter_ids.add(verification.recruiter_id)
+        
+        # Fetch Recruiter Names
+        recruiter_name_dict: Dict[int, str] = {}
+        if all_recruiter_ids:
+            recruiter_result = await db.execute(
+                select(Recruiter.id, Recruiter.first_name, Recruiter.last_name).filter(
+                    Recruiter.id.in_(all_recruiter_ids)
+                )
+            )
+            recruiters_data = recruiter_result.all()
+
+            for rec in recruiters_data:
+                first_name = getattr(rec, "first_name", "") or ""
+                last_name = getattr(rec, "last_name", "") or ""
+                recruiter_name_dict[rec.id] = f"{first_name} {last_name}".strip()
+        
+        # Process validated education and build the final response
+        response_education: List[GetCandidateEducation] = []
+        for edu in validated_education:
+            exp_verifications_response = []
+            if edu.verifications:
+                for verification in edu.verifications:
+                    recruiter_name = recruiter_name_dict.get(
+                        verification.recruiter_id, "Unknown Recruiter"
+                    )
+                    exp_verifications_response.append(
+                        VerificationDetailResponse(
+                            recruiter_id=verification.recruiter_id,
+                            verified_at=verification.verified_at,
+                            recruiter_name=recruiter_name,
+                        )
+                    )
+
+            response_education.append(
+                GetCandidateEducation(
+                    id=edu.id,
+                    degree=edu.degree,
+                    major=edu.major,
+                    school=edu.school,
+                    graduation_date=edu.graduation_date,
+                    attachments=edu.attachment_id,
+                    verifications=exp_verifications_response,
+                )
+            )
+        return response_education
+    except HTTPException:
+        raise
+    except Exception:
+        # logger.error(...)
+        raise HTTPException(
+            status_code=500, detail="An unexpected internal server error occurred."
+        )
+
 
 
 @router.get("/by_id", response_model=List[ListCandidatesFromSessionIdResponse])

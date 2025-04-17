@@ -155,6 +155,17 @@ class GetCandidateWorkExperience(BaseModel):
     verifications: List[VerificationDetailResponse] = Field(default_factory=list)
 
 
+class GetCandidateEducation(BaseModel):
+    id: Optional[UUID] = None
+    degree: Optional[str] = None
+    major: Optional[str] = None
+    school: Optional[str] = None
+    graduation_date: Optional[str] = None  # Optional: can be null
+    attachments: List[UUID] | None 
+
+    # Use the response model that includes the name
+    verifications: List[VerificationDetailResponse] = Field(default_factory=list)
+
 # Update the response model
 class VerifyWorkExperienceResponse(BaseModel):
     work_experience_id: str
