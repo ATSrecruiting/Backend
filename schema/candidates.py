@@ -52,7 +52,7 @@ class Education(BaseModel):
     major: Optional[str] = None
     school: Optional[str] = None
     graduation_date: Optional[str] = None  # Optional: can be null
-    attachment_id: Optional[List[UUID]] = None  # Optional: can be null
+    attachment_ids: Optional[List[UUID]] = None  # Optional: can be null
     verifications: List[VerificationDetail] = Field(default_factory=list)
 
 

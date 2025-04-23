@@ -256,7 +256,7 @@ async def get_candidate_education(
                     major=edu.major,
                     school=edu.school,
                     graduation_date=edu.graduation_date,
-                    attachments=edu.attachment_id,
+                    attachments=edu.attachment_ids,
                     verifications=exp_verifications_response,
                 )
             )
