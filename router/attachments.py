@@ -171,8 +171,7 @@ async def get_resume_download_url(
 
 
 
-@router.post("/batch_download"
-              , response_model=List[GetFileURLResponse])
+@router.post("/batch_download", response_model=List[GetFileURLResponse])
 async def batch_download_files(
     request_body: GetFileURLRequest,
     db: AsyncSession = Depends(get_db),
@@ -192,11 +191,50 @@ async def batch_download_files(
     if not db_files:
         raise HTTPException(status_code=404, detail="No files found for the provided IDs.")
     
+    # Helper function to determine content type
+    def get_content_type(filename):
+        """Get the content type based on the file extension."""
+        extension = filename.split('.')[-1].lower() if '.' in filename else ''
+        content_types = {
+            'pdf': 'application/pdf',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'gif': 'image/gif',
+            'bmp': 'image/bmp',
+            'tiff': 'image/tiff',
+            'tif': 'image/tiff',
+            'webp': 'image/webp',
+            'doc': 'application/msword',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls': 'application/vnd.ms-excel',
+            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'ppt': 'application/vnd.ms-powerpoint',
+            'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'txt': 'text/plain',
+            'csv': 'text/csv',
+            'html': 'text/html',
+            'htm': 'text/html',
+            'xml': 'application/xml',
+            'json': 'application/json',
+            'zip': 'application/zip',
+            'rar': 'application/x-rar-compressed',
+            'tar': 'application/x-tar',
+            'gz': 'application/gzip',
+        }
+        return content_types.get(extension, 'application/octet-stream')
+    
     # 2. Generate pre-signed URLs for each file
     file_urls = []
     for db_file in db_files:
         s3_object_key = db_file.file_path
         original_filename = db_file.filename
+        content_type = get_content_type(original_filename)
+        
+        # Determine content disposition based on file type
+        # Use 'inline' for PDFs and images to display in browser
+        # Use 'attachment' for other files to download
+        disposition_type = 'inline' if content_type.startswith(('application/pdf', 'image/')) else 'attachment'
 
         try:
             expiration = 3600  # e.g., 1 hour
@@ -205,7 +243,11 @@ async def batch_download_files(
                 Params={
                     'Bucket': bucket_name,
                     'Key': s3_object_key,
-                    'ResponseContentDisposition': f'attachment; filename="{original_filename}"'
+                    'ResponseContentType': content_type,
+                    'ResponseContentDisposition': f'inline; filename="{original_filename}"',
+                    # Add CORS headers
+                    'ResponseCacheControl': 'no-cache',
+                    'ResponseExpires': '0',
                 },
                 ExpiresIn=expiration
             )
