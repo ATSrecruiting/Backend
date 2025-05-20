@@ -71,10 +71,46 @@ class Certification(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     certifier: Optional[str] = None
     certification_name: Optional[str] = None
-    attachment_id: Optional[List[UUID]] = None  # Optional: can be null
+    attachment_ids: Optional[List[UUID]] = None  # Optional: can be null
 
     verifications: List[VerificationDetail] = Field(default_factory=list)
 
+
+class WhoAmI(BaseModel):
+    id : UUID = Field(default_factory=uuid4)
+    personal_statement: Optional[str] = None
+    core_values : Optional[List[str]] = None
+    working_style : Optional[List[str]] = None
+    motivators : Optional[List[str]] = None
+    interests_passions : Optional[List[str]] = None
+    attachment_ids: Optional[List[UUID]] = None  # Optional: can be null
+
+    verifications: List[VerificationDetail] = Field(default_factory=list)
+
+class PersonalGrowth(BaseModel):
+    id : UUID = Field(default_factory=uuid4)
+    area_of_focus: Optional[str] = None
+    activity_method: Optional[str] = None
+    description: Optional[str] = None
+    timeframe: Optional[str] = None
+    skills_gained : Optional[List[str]] = None
+    attachment_ids: Optional[List[UUID]] = None  # Optional: can be null
+
+    verifications: List[VerificationDetail] = Field(default_factory=list)
+
+
+class SuccessStory(BaseModel):
+    id : UUID = Field(default_factory=uuid4)
+    headline: Optional[str] = None
+    situation: Optional[str] = None
+    actions: Optional[str] = None
+    results: Optional[str] = None
+    skills : Optional[List[str]] = None
+    relevant_experience: Optional[str] = None
+    timeframe: Optional[str] = None
+    attachment_ids: Optional[List[UUID]] = None  # Optional: can be null
+
+    verifications: List[VerificationDetail] = Field(default_factory=list)
 
 class CVData(BaseModel):
     file_id: UUID
@@ -90,6 +126,11 @@ class CVData(BaseModel):
     education: Optional[List[Education]] = None
     skills: Optional[SkillSet] = None
     certifications: Optional[List[Certification]] = None
+    personal_growth: Optional[List[PersonalGrowth]] = None
+    who_am_i: Optional[WhoAmI] = None
+    success_stories: Optional[List[SuccessStory]] = None
+
+    
 
 
 class LoginResponse(BaseModel):

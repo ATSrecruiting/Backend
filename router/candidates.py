@@ -103,6 +103,19 @@ async def update_personal_info(
             ]
             if candidate_data.certifications
             else [],
+            personal_growth=[
+                pg.model_dump_json() for pg in candidate_data.personal_growth
+            ]
+            if candidate_data.personal_growth
+            else [],
+            who_am_i= candidate_data.who_am_i.model_dump_json() 
+            if candidate_data.who_am_i
+            else None,
+            success_stories=[
+                ss.model_dump_json() for ss in candidate_data.success_stories
+            ]
+            if candidate_data.success_stories
+            else [],
             resume_id=candidate_data.file_id,
         )
         db.add(candidate)

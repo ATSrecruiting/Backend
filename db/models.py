@@ -123,6 +123,9 @@ class Candidate(Base):
     education: Mapped[list[dict]] = mapped_column(JSONB, nullable=True)
     skills: Mapped[dict] = mapped_column(JSONB, nullable=True)
     certifications: Mapped[list[dict]] = mapped_column(JSONB, nullable=True)
+    personal_growth : Mapped[list[dict]] = mapped_column(JSONB, nullable=True)
+    who_am_i: Mapped[dict] = mapped_column(JSONB, nullable=True)
+    success_stories: Mapped[list[dict]] = mapped_column(JSONB, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=True, default="applied")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=True, default=datetime.now(timezone.utc)
