@@ -207,6 +207,20 @@ class GetCandidateEducation(BaseModel):
     # Use the response model that includes the name
     verifications: List[VerificationDetailResponse] = Field(default_factory=list)
 
+
+class GetCandidateCertification(BaseModel):
+    id: Optional[UUID] = None
+    certifier: Optional[str] = None
+    certification_name: Optional[str] = None
+    attachments: List[UUID] | None 
+
+    # Use the response model that includes the name
+    verifications: List[VerificationDetailResponse] = Field(default_factory=list)
+
+
+
+
+
 # Update the response model
 class VerifyWorkExperienceResponse(BaseModel):
     work_experience_id: str
@@ -230,3 +244,14 @@ class UnVerifyEducationResponse(BaseModel):
     education_id: str
     recruiter_id: int
     message: str = "Education verified successfully."
+
+
+class VerifyCertificationResponse(BaseModel):
+    certification_id: str
+    recruiter_id: int
+    message: str = "Certification verified successfully."
+
+class UnVerifyCertificationResponse(BaseModel):
+    certification_id: str
+    recruiter_id: int
+    message: str = "Certification unverified successfully."

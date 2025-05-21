@@ -10,7 +10,9 @@ from auth.password import hash_password
 
 from schema.candidates import (
     Address,
+    Certification,
     Education,
+    GetCandidateCertification,
     GetCandidateEducation,
     GetCandidatePersonalInfo,
     GetCandidateWorkExperience,
@@ -19,7 +21,9 @@ from schema.candidates import (
     RegisterCandidateResponse,
     CVData,
     ListCandidatesResponse,
+    UnVerifyCertificationResponse,
     UnVerifyEducationResponse,
+    VerifyCertificationResponse,
     VerifyEducationResponse,
     VerifyWorkExperienceResponse,
     WorkExperience,
@@ -521,6 +525,105 @@ async def get_candidate_work_experience(
         )
 
 
+@router.get("/{candidate_id}/certification", response_model= List[GetCandidateCertification])
+async def get_candidate_certifications(
+    candidate_id: int, db: AsyncSession = Depends(get_db)
+):
+    try:
+        result = await db.execute(
+            select(Candidate.certifications)
+            .filter(Candidate.id == candidate_id)
+            .limit(1)
+        )
+        raw_certification_list = result.scalar_one_or_none()
+
+        if raw_certification_list is None:
+            candidate_exists_result = await db.execute(
+                select(Candidate.id).filter(Candidate.id == candidate_id).limit(1)
+            )
+            if candidate_exists_result.scalar_one_or_none() is None:
+                raise HTTPException(status_code=404, detail="Candidate not found")
+            else:
+                return []
+        
+        # Validate data structure using Pydantic (Certification model)
+        validated_certifications: List[Certification] = []
+        if isinstance(raw_certification_list, list):
+            try:
+                validated_certifications = [
+                    Certification.model_validate(json.loads(cert))
+                    if isinstance(cert, str)
+                    else Certification.model_validate(cert)
+                    for cert in raw_certification_list
+                ]
+            except Exception:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Error validating stored certification data.",
+                )
+        else:
+            return []
+        
+        if not validated_certifications:
+            return []
+        
+        all_recruiter_ids = set()
+        for cert in validated_certifications:
+            if cert.verifications:
+                for verification in cert.verifications:
+                    all_recruiter_ids.add(verification.recruiter_id)
+        
+        # Fetch Recruiter Names
+        recruiter_name_dict: Dict[int, str] = {}
+        if all_recruiter_ids:
+            recruiter_result = await db.execute(
+                select(Recruiter.id, Recruiter.first_name, Recruiter.last_name).filter(
+                    Recruiter.id.in_(all_recruiter_ids)
+                )
+            )
+            recruiters_data = recruiter_result.all()
+
+            for rec in recruiters_data:
+                first_name = getattr(rec, "first_name", "") or ""
+                last_name = getattr(rec, "last_name", "") or ""
+                recruiter_name_dict[rec.id] = f"{first_name} {last_name}".strip()
+        
+        # Process validated certifications and build the final response
+        response_certifications: List[GetCandidateCertification] = []
+        for cert in validated_certifications:
+            exp_verifications_response = []
+            if cert.verifications:
+                for verification in cert.verifications:
+                    recruiter_name = recruiter_name_dict.get(
+                        verification.recruiter_id, "Unknown Recruiter"
+                    )
+                    exp_verifications_response.append(
+                        VerificationDetailResponse(
+                            recruiter_id=verification.recruiter_id,
+                            verified_at=verification.verified_at,
+                            recruiter_name=recruiter_name,
+                        )
+                    )
+            response_certifications.append(
+                GetCandidateCertification(
+                    id=cert.id,
+                    certifier=cert.certifier,
+                    certification_name=cert.certification_name,
+                    attachments=cert.attachment_ids,
+                    verifications=exp_verifications_response,
+                )
+            )
+        return response_certifications
+    except HTTPException:
+        raise
+    except Exception:
+        # logger.error(...)
+        raise HTTPException(
+            status_code=500, detail="An unexpected internal server error occurred."
+        )
+
+
+
 @router.put(
     "/{candidate_id}/work_experience/{work_id}/verify",
     response_model=VerifyWorkExperienceResponse,
@@ -996,6 +1099,221 @@ async def unverify_education(
                 education_id=edu_id,
                 recruiter_id=recruiter_id,
                 message="Education was not previously verified by this recruiter. No changes made.",
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected internal server error occurred during unverification.",
+        )
+
+
+@router.put(
+    "/{candidate_id}/certification/{cert_id}/verify",
+    response_model=VerifyCertificationResponse,
+)
+async def verify_certification(
+    candidate_id: int,
+    cert_id: str,
+    dbps: Tuple[User, AsyncSession] = Depends(get_current_user),
+):
+    user, db = dbps
+    recruiter_id = None
+
+    try:
+        if user.account_type != "recruiter" or user.recruiter is None:
+            raise HTTPException(
+                status_code=403, detail="Unauthorized access: User is not a recruiter."
+            )
+        recruiter_id = user.recruiter.id
+
+        result = await db.execute(
+            select(Candidate).filter(Candidate.id == candidate_id)
+        )
+        candidate = result.scalar_one_or_none()
+
+        if candidate is None:
+            raise HTTPException(status_code=404, detail="Candidate not found")
+        
+        if candidate.certifications is None:
+            candidate.certifications = []
+        
+        certification_data: List[Certification] = []
+        try:
+            certification_data = [
+                Certification.model_validate(json.loads(cert))
+                if isinstance(cert, str)
+                else Certification.model_validate(cert)
+                for cert in candidate.certifications
+            ]
+        except Exception:
+            raise HTTPException(
+                status_code=500,
+                detail="Error validating stored certification data.",
+            )
+        
+        if not certification_data:
+            raise HTTPException(
+                status_code=404,
+                detail="Certification list is empty for this candidate.",
+            )
+        
+        target_cert: Optional[Certification] = None
+        for cert in certification_data:
+            if str(cert.id) == cert_id:
+                target_cert = cert
+                break
+        
+        if target_cert is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Certification with ID {cert_id} not found for this candidate.",
+            )
+        
+        already_verified = False
+        for verification in target_cert.verifications:
+            if verification.recruiter_id == recruiter_id:
+                already_verified = True
+                break
+        
+        if not already_verified:
+            new_verification = VerificationDetail(recruiter_id=recruiter_id)
+            target_cert.verifications.append(new_verification)
+
+            updated_certification_json = [
+                cert.model_dump_json() for cert in certification_data
+            ]
+
+            await db.execute(
+                update(Candidate)
+                .where(Candidate.id == candidate_id)
+                .values(
+                    certifications=updated_certification_json
+                )
+            )
+            await db.commit()
+
+            return VerifyCertificationResponse(
+                certification_id=cert_id,
+                recruiter_id=recruiter_id,
+                message="Certification verified successfully.",
+            )
+        else:
+            return VerifyCertificationResponse(
+                certification_id=cert_id,
+                recruiter_id=recruiter_id,
+                message="Certification was already verified by this recruiter.",
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        await db.rollback()
+        raise HTTPException(
+            status_code=500, detail="An unexpected internal server error occurred."
+        )
+
+
+@router.put(
+    "/{candidate_id}/certification/{cert_id}/unverify",
+    response_model=UnVerifyCertificationResponse,
+)
+async def unverify_certification(
+    candidate_id: int,
+    cert_id: str,
+    dbps: Tuple[User, AsyncSession] = Depends(get_current_user),
+):
+    user, db = dbps
+    recruiter_id = None
+
+    try:
+        if user.account_type != "recruiter" or user.recruiter is None:
+            raise HTTPException(
+                status_code=403, detail="Unauthorized access: User is not a recruiter."
+            )
+        recruiter_id = user.recruiter.id
+
+        result = await db.execute(
+            select(Candidate).filter(Candidate.id == candidate_id)
+        )
+        candidate = result.scalar_one_or_none()
+
+        if candidate is None:
+            raise HTTPException(status_code=404, detail="Candidate not found")
+        
+        if candidate.certifications is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Certification list is empty for this candidate.",
+            )
+
+        certification_data: List[Certification] = []
+        try:
+            certification_data = [
+                Certification.model_validate(json.loads(cert))
+                if isinstance(cert, str)
+                else Certification.model_validate(cert)
+                for cert in candidate.certifications
+            ]
+        except Exception:
+            raise HTTPException(
+                status_code=500,
+                detail="Error validating stored certification data.",
+            )
+        
+        target_cert: Optional[Certification] = None
+        target_cert_index: Optional[int] = None
+        for index, cert in enumerate(certification_data):
+            if str(cert.id) == str(cert_id):
+                target_cert = cert
+                target_cert_index = index
+                break
+        
+        if target_cert is None or target_cert_index is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Certification with ID {cert_id} not found for this candidate.",
+            )
+        
+        initial_verifications_count = len(target_cert.verifications)
+
+        original_verifications = target_cert.verifications
+        target_cert.verifications = [
+            verification
+            for verification in original_verifications
+            if verification.recruiter_id != recruiter_id
+        ]
+
+        verifications_removed = (
+            len(target_cert.verifications) < initial_verifications_count
+        )
+
+        if verifications_removed:
+            certification_data[target_cert_index] = target_cert
+
+            updated_certification_json = [
+                cert.model_dump_json() for cert in certification_data
+            ]
+            await db.execute(
+                update(Candidate)
+                .where(Candidate
+                .id == candidate_id)
+                .values(
+                    certifications=updated_certification_json
+                )
+            )
+            await db.commit()
+            return UnVerifyCertificationResponse(
+                certification_id=cert_id,
+                recruiter_id=recruiter_id,
+                message="Certification verification removed successfully.",
+            )
+        else:
+            return UnVerifyCertificationResponse(
+                certification_id=cert_id,
+                recruiter_id=recruiter_id,
+                message="Certification was not previously verified by this recruiter. No changes made.",
             )
     except HTTPException:
         raise
