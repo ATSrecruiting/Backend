@@ -14,17 +14,21 @@ from schema.candidates import (
     Education,
     GetCandidateCertification,
     GetCandidateEducation,
+    GetCandidatePersonalGrowth,
     GetCandidatePersonalInfo,
     GetCandidateWorkExperience,
     ListCandidatesFromSessionIdResponse,
+    PersonalGrowth,
     RegisterCandidateRequest,
     RegisterCandidateResponse,
     CVData,
     ListCandidatesResponse,
     UnVerifyCertificationResponse,
     UnVerifyEducationResponse,
+    UnVerifyPersonalGrowthResponse,
     VerifyCertificationResponse,
     VerifyEducationResponse,
+    VerifyPersonalGrowthResponse,
     VerifyWorkExperienceResponse,
     WorkExperience,
     VerificationDetail,
@@ -622,6 +626,113 @@ async def get_candidate_certifications(
             status_code=500, detail="An unexpected internal server error occurred."
         )
 
+
+@router.get(
+    "/{candidate_id}/personal_growth", response_model=List[GetCandidatePersonalGrowth] 
+)
+async def get_candidate_personal_growth(
+    candidate_id: int, db: AsyncSession = Depends(get_db)
+):
+    try:
+        result = await db.execute(
+            select(Candidate.personal_growth)
+            .filter(Candidate.id == candidate_id)
+            .limit(1)
+        )
+        raw_personal_growth_list = result.scalar_one_or_none()
+
+        if raw_personal_growth_list is None:
+            candidate_exists_result = await db.execute(
+                select(Candidate.id).filter(Candidate.id == candidate_id).limit(1)
+            )
+            if candidate_exists_result.scalar_one_or_none() is None:
+                raise HTTPException(status_code=404, detail="Candidate not found")
+            else:
+                return []
+        
+        # Validate data structure using Pydantic (PersonalGrowth model)
+        validated_personal_growth: List[PersonalGrowth] = []
+        if isinstance(raw_personal_growth_list, list):
+            try:
+                validated_personal_growth = [
+                    PersonalGrowth.model_validate(json.loads(pg))
+                    if isinstance(pg, str)
+                    else PersonalGrowth.model_validate(pg)
+                    for pg in raw_personal_growth_list
+                ]
+            except Exception:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Error validating stored personal growth data.",
+                )
+        else:
+            return []
+        
+        if not validated_personal_growth:
+            return []
+        
+        all_recruiter_ids = set()
+        for pg in validated_personal_growth:
+            if pg.verifications:
+                for verification in pg.verifications:
+                    all_recruiter_ids.add(verification.recruiter_id)
+        
+        # Fetch Recruiter Names
+        recruiter_name_dict: Dict[int, str] = {}
+        if all_recruiter_ids:
+            recruiter_result = await db.execute(
+                select(Recruiter.id, Recruiter.first_name, Recruiter.last_name).filter(
+                    Recruiter.id.in_(all_recruiter_ids)
+                )
+            )
+            recruiters_data = recruiter_result.all()
+
+            for rec in recruiters_data:
+                first_name = getattr(rec, "first_name", "") or ""
+                last_name = getattr(rec, "last_name", "") or ""
+                recruiter_name_dict[rec.id] = f"{first_name} {last_name}".strip()
+        
+        # Process validated personal growth and build the final response
+        response_personal_growth: List[GetCandidatePersonalGrowth] = []
+        for pg in validated_personal_growth:
+            exp_verifications_response = []
+            if pg.verifications:
+                for verification in pg.verifications:
+                    recruiter_name = recruiter_name_dict.get(
+                        verification.recruiter_id, "Unknown Recruiter"
+                    )
+                    exp_verifications_response.append(
+                        VerificationDetailResponse(
+                            recruiter_id=verification.recruiter_id,
+                            verified_at=verification.verified_at,
+                            recruiter_name=recruiter_name,
+                        )
+                    )
+            response_personal_growth.append(
+                GetCandidatePersonalGrowth(
+                    id=pg.id,
+                    area_of_focus=pg.area_of_focus,
+                    activity_method=pg.activity_method,
+                    description=pg.description,
+                    timeframe=pg.timeframe,
+                    skills_gained=pg.skills_gained,
+                    attachments=pg.attachment_ids,
+                    verifications=exp_verifications_response,
+                )
+            )
+        return response_personal_growth
+    except HTTPException:
+        raise
+    except Exception:
+        # logger.error(...)
+        raise HTTPException(
+            status_code=500, detail="An unexpected internal server error occurred."
+        )
+
+    
+
+
+                
 
 
 @router.put(
@@ -1314,6 +1425,217 @@ async def unverify_certification(
                 certification_id=cert_id,
                 recruiter_id=recruiter_id,
                 message="Certification was not previously verified by this recruiter. No changes made.",
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected internal server error occurred during unverification.",
+        )
+
+
+@router.put(
+    "/{candidate_id}/personal_growth/{pg_id}/verify",
+    response_model=VerifyPersonalGrowthResponse,
+)
+async def verify_personal_growth(
+    candidate_id: int,
+    pg_id: str,
+    dbps: Tuple[User, AsyncSession] = Depends(get_current_user),
+):
+    user, db = dbps
+    recruiter_id = None
+
+    try:
+        if user.account_type != "recruiter" or user.recruiter is None:
+            raise HTTPException(
+                status_code=403, detail="Unauthorized access: User is not a recruiter."
+            )
+        recruiter_id = user.recruiter.id
+
+        result = await db.execute(
+            select(Candidate).filter(Candidate.id == candidate_id)
+        )
+        candidate = result.scalar_one_or_none()
+
+        if candidate is None:
+            raise HTTPException(status_code=404, detail="Candidate not found")
+        
+        if candidate.personal_growth is None:
+            candidate.personal_growth = []
+        
+        personal_growth_data: List[PersonalGrowth] = []
+        try:
+            personal_growth_data = [
+                PersonalGrowth.model_validate(json.loads(pg))
+                if isinstance(pg, str)
+                else PersonalGrowth.model_validate(pg)
+                for pg in candidate.personal_growth
+            ]
+        except Exception:
+            raise HTTPException(
+                status_code=500,
+                detail="Error validating stored personal growth data.",
+            )
+        
+        if not personal_growth_data:
+            raise HTTPException(
+                status_code=404,
+                detail="Personal growth list is empty for this candidate.",
+            )
+        
+        target_pg: Optional[PersonalGrowth] = None
+        for pg in personal_growth_data:
+            if str(pg.id) == pg_id:
+                target_pg = pg
+                break
+        
+        if target_pg is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Personal growth with ID {pg_id} not found for this candidate.",
+            )
+        
+        already_verified = False
+        for verification in target_pg.verifications:
+            if verification.recruiter_id == recruiter_id:
+                already_verified = True
+                break
+        
+        if not already_verified:
+            new_verification = VerificationDetail(recruiter_id=recruiter_id)
+            target_pg.verifications.append(new_verification)
+
+            updated_personal_growth_json = [
+                pg.model_dump_json() for pg in personal_growth_data
+            ]
+
+            await db.execute(
+                update(Candidate)
+                .where(Candidate.id == candidate_id)
+                .values(
+                    personal_growth=updated_personal_growth_json
+                )
+            )
+            await db.commit()
+            return VerifyPersonalGrowthResponse(
+                personal_growth_id=pg_id,
+                recruiter_id=recruiter_id,
+                message="Personal growth verified successfully.",
+            )
+        else:
+            return VerifyPersonalGrowthResponse(
+                personal_growth_id=pg_id,
+                recruiter_id=recruiter_id,
+                message="Personal growth was already verified by this recruiter.",
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        await db.rollback()
+        raise HTTPException(
+            status_code=500, detail="An unexpected internal server error occurred."
+        )
+@router.put(
+    "/{candidate_id}/personal_growth/{pg_id}/unverify",
+    response_model=UnVerifyPersonalGrowthResponse,
+)
+async def unverify_personal_growth(
+    candidate_id: int,
+    pg_id: str,
+    dbps: Tuple[User, AsyncSession] = Depends(get_current_user),
+):
+    user, db = dbps
+    recruiter_id = None
+
+    try:
+        if user.account_type != "recruiter" or user.recruiter is None:
+            raise HTTPException(
+                status_code=403, detail="Unauthorized access: User is not a recruiter."
+            )
+        recruiter_id = user.recruiter.id
+
+        result = await db.execute(
+            select(Candidate).filter(Candidate.id == candidate_id)
+        )
+        candidate = result.scalar_one_or_none()
+
+        if candidate is None:
+            raise HTTPException(status_code=404, detail="Candidate not found")
+        
+        if candidate.personal_growth is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Personal growth list is empty for this candidate.",
+            )
+
+        personal_growth_data: List[PersonalGrowth] = []
+        try:
+            personal_growth_data = [
+                PersonalGrowth.model_validate(json.loads(pg))
+                if isinstance(pg, str)
+                else PersonalGrowth.model_validate(pg)
+                for pg in candidate.personal_growth
+            ]
+        except Exception:
+            raise HTTPException(
+                status_code=500,
+                detail="Error validating stored personal growth data.",
+            )
+        
+        target_pg: Optional[PersonalGrowth] = None
+        target_pg_index: Optional[int] = None
+        for index, pg in enumerate(personal_growth_data):
+            if str(pg.id) == str(pg_id):
+                target_pg = pg
+                target_pg_index = index
+                break
+        
+        if target_pg is None or target_pg_index is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Personal growth with ID {pg_id} not found for this candidate.",
+            )
+        
+        initial_verifications_count = len(target_pg.verifications)
+
+        original_verifications = target_pg.verifications
+        target_pg.verifications = [
+            verification
+            for verification in original_verifications
+            if verification.recruiter_id != recruiter_id
+        ]
+
+        verifications_removed = (
+            len(target_pg.verifications) < initial_verifications_count
+        )
+
+        if verifications_removed:
+            personal_growth_data[target_pg_index] = target_pg
+
+            updated_personal_growth_json = [
+                pg.model_dump_json() for pg in personal_growth_data
+            ]
+            await db.execute(
+                update(Candidate)
+                .where(Candidate.id == candidate_id)
+                .values(
+                    personal_growth=updated_personal_growth_json
+                )
+            )
+            await db.commit()
+            return UnVerifyPersonalGrowthResponse(
+                personal_growth_id=pg_id,
+                recruiter_id=recruiter_id,
+                message="Personal growth verification removed successfully.",
+            )
+        else:
+            return UnVerifyPersonalGrowthResponse(
+                personal_growth_id=pg_id,
+                recruiter_id=recruiter_id,
+                message="Personal growth was not previously verified by this recruiter. No changes made.",
             )
     except HTTPException:
         raise

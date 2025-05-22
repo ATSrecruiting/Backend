@@ -218,6 +218,18 @@ class GetCandidateCertification(BaseModel):
     verifications: List[VerificationDetailResponse] = Field(default_factory=list)
 
 
+class GetCandidatePersonalGrowth(BaseModel):
+    id: Optional[UUID] = None
+    area_of_focus: Optional[str] = None
+    activity_method: Optional[str] = None
+    description: Optional[str] = None
+    timeframe: Optional[str] = None
+    skills_gained : Optional[List[str]] = None
+    attachments: List[UUID] | None 
+
+    # Use the response model that includes the name
+    verifications: List[VerificationDetailResponse] = Field(default_factory=list)
+
 
 
 
@@ -255,3 +267,13 @@ class UnVerifyCertificationResponse(BaseModel):
     certification_id: str
     recruiter_id: int
     message: str = "Certification unverified successfully."
+
+class VerifyPersonalGrowthResponse(BaseModel):
+    personal_growth_id: str
+    recruiter_id: int
+    message: str = "Personal growth verified successfully."
+
+class UnVerifyPersonalGrowthResponse(BaseModel):
+    personal_growth_id: str
+    recruiter_id: int
+    message: str = "Personal growth unverified successfully."
