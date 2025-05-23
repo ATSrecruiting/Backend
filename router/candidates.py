@@ -1,4 +1,5 @@
 from typing import List, Tuple, Optional
+from urllib import response
 from sentence_transformers import SentenceTransformer
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Query
@@ -16,6 +17,8 @@ from schema.candidates import (
     GetCandidateEducation,
     GetCandidatePersonalGrowth,
     GetCandidatePersonalInfo,
+    GetCandidateSuccessStory,
+    GetCandidateWhoAmI,
     GetCandidateWorkExperience,
     ListCandidatesFromSessionIdResponse,
     PersonalGrowth,
@@ -23,6 +26,7 @@ from schema.candidates import (
     RegisterCandidateResponse,
     CVData,
     ListCandidatesResponse,
+    SuccessStory,
     UnVerifyCertificationResponse,
     UnVerifyEducationResponse,
     UnVerifyPersonalGrowthResponse,
@@ -30,6 +34,7 @@ from schema.candidates import (
     VerifyEducationResponse,
     VerifyPersonalGrowthResponse,
     VerifyWorkExperienceResponse,
+    WhoAmI,
     WorkExperience,
     VerificationDetail,
     VerificationDetailResponse,
@@ -729,7 +734,161 @@ async def get_candidate_personal_growth(
             status_code=500, detail="An unexpected internal server error occurred."
         )
 
+
+@router.get(
+    "/{candidate_id}/success_stories", response_model=List[GetCandidateSuccessStory]
+)
+async def get_candidate_success_stories(
+    candidate_id: int, db: AsyncSession = Depends(get_db)
+):
+    try:
+        result = await db.execute(
+            select(Candidate.success_stories)
+            .filter(Candidate.id == candidate_id)
+            .limit(1)
+        )
+        raw_success_story_list = result.scalar_one_or_none()
+
+        if raw_success_story_list is None:
+            candidate_exists_result = await db.execute(
+                select(Candidate.id).filter(Candidate.id == candidate_id).limit(1)
+            )
+            if candidate_exists_result.scalar_one_or_none() is None:
+                raise HTTPException(status_code=404, detail="Candidate not found")
+            else:
+                return []
+        
+        # Validate data structure using Pydantic (SuccessStory model)
+        validated_success_stories: List[SuccessStory] = []
+        if isinstance(raw_success_story_list, list):
+            try:
+                validated_success_stories = [
+                    SuccessStory.model_validate(json.loads(ss))
+                    if isinstance(ss, str)
+                    else SuccessStory.model_validate(ss)
+                    for ss in raw_success_story_list
+                ]
+            except Exception:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Error validating stored success story data.",
+                )
+        else:
+            return []
+        
+        if not validated_success_stories:
+            return []
+        
+        all_recruiter_ids = set()
+        for ss in validated_success_stories:
+            if ss.verifications:
+                for verification in ss.verifications:
+                    all_recruiter_ids.add(verification.recruiter_id)
+        
+        # Fetch Recruiter Names
+        recruiter_name_dict: Dict[int, str] = {}
+        if all_recruiter_ids:
+            recruiter_result = await db.execute(
+                select(Recruiter.id, Recruiter.first_name, Recruiter.last_name).filter(
+                    Recruiter.id.in_(all_recruiter_ids)
+                )
+            )
+            recruiters_data = recruiter_result.all()
+
+            for rec in recruiters_data:
+                first_name = getattr(rec, "first_name", "") or ""
+                last_name = getattr(rec, "last_name", "") or ""
+                recruiter_name_dict[rec.id] = f"{first_name} {last_name}".strip()
+        
+        # Process validated success stories and build the final response
+        response_success_stories: List[GetCandidateSuccessStory] = []
+        for ss in validated_success_stories:
+            exp_verifications_response = []
+            if ss.verifications:
+                for verification in ss.verifications:
+                    recruiter_name = recruiter_name_dict.get(
+                        verification.recruiter_id, "Unknown Recruiter"
+                    )
+                    exp_verifications_response.append(
+                        VerificationDetailResponse(
+                            recruiter_id=verification.recruiter_id,
+                            verified_at=verification.verified_at,
+                            recruiter_name=recruiter_name,
+                        )
+                    )
+            response_success_stories.append(
+                GetCandidateSuccessStory(
+                    id=ss.id,
+                    headline=ss.headline,
+                    situation=ss.situation,
+                    actions=ss.actions,
+                    results=ss.results,
+                    skills=ss.skills,
+                    relevant_experience=ss.relevant_experience,
+                    timeframe=ss.timeframe,
+                    attachments=ss.attachment_ids,
+                    verifications=exp_verifications_response,  # Use the list with names
+                )
+            )
+        return response_success_stories
+    except HTTPException:
+        raise
+    except Exception:
+        # logger.error(...)
+        raise HTTPException(
+            status_code=500, detail="An unexpected internal server error occurred."
+        )
     
+@router.get(
+    "/{candidate_id}/who_am_i", response_model=GetCandidateWhoAmI
+)
+async def get_candidate_who_am_i(
+    candidate_id: int, db: AsyncSession = Depends(get_db)
+):
+    try:
+        result = await db.execute(
+            select(Candidate.who_am_i)
+            .filter(Candidate.id == candidate_id)
+            .limit(1)
+        )
+        raw_who_am_i = result.scalar_one_or_none()
+
+        if raw_who_am_i is None:
+            candidate_exists_result = await db.execute(
+                select(Candidate.id).filter(Candidate.id == candidate_id).limit(1)
+            )
+            if candidate_exists_result.scalar_one_or_none() is None:
+                raise HTTPException(status_code=404, detail="Candidate not found")
+            else:
+                return []
+        
+        # Validate data structure using Pydantic (WhoAmI model)
+        validated_who_am_i: WhoAmI = WhoAmI.model_validate(
+            json.loads(raw_who_am_i)
+            if isinstance(raw_who_am_i, str)
+            else raw_who_am_i
+        )
+        if not validated_who_am_i:
+            return []
+        
+        response_who_am_i = GetCandidateWhoAmI(
+            id=validated_who_am_i.id,
+            personal_statement=validated_who_am_i.personal_statement,
+            core_values=validated_who_am_i.core_values,
+            working_style=validated_who_am_i.working_style,
+            motivators=validated_who_am_i.motivators,
+            interests_passions=validated_who_am_i.interests_passions,
+            attachments=validated_who_am_i.attachment_ids,
+        )
+
+        return response_who_am_i
+    except HTTPException:
+        raise
+    except Exception as e:
+        # logger.error(...)
+        raise HTTPException(
+            status_code=500, detail=f"An unexpected internal server error occurred. {str(e)}"
+        )
 
 
                 

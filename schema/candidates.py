@@ -85,7 +85,6 @@ class WhoAmI(BaseModel):
     interests_passions : Optional[List[str]] = None
     attachment_ids: Optional[List[UUID]] = None  # Optional: can be null
 
-    verifications: List[VerificationDetail] = Field(default_factory=list)
 
 class PersonalGrowth(BaseModel):
     id : UUID = Field(default_factory=uuid4)
@@ -230,6 +229,28 @@ class GetCandidatePersonalGrowth(BaseModel):
     # Use the response model that includes the name
     verifications: List[VerificationDetailResponse] = Field(default_factory=list)
 
+class GetCandidateWhoAmI(BaseModel):
+    id: Optional[UUID] = None
+    personal_statement: Optional[str] = None
+    core_values : Optional[List[str]] = None
+    working_style : Optional[List[str]] = None
+    motivators : Optional[List[str]] = None
+    interests_passions : Optional[List[str]] = None
+    attachments: List[UUID] | None 
+
+class GetCandidateSuccessStory(BaseModel):
+    id: Optional[UUID] = None
+    headline: Optional[str] = None
+    situation: Optional[str] = None
+    actions: Optional[str] = None
+    results: Optional[str] = None
+    skills : Optional[List[str]] = None
+    relevant_experience: Optional[str] = None
+    timeframe: Optional[str] = None
+    attachments: List[UUID] | None 
+
+    # Use the response model that includes the name
+    verifications: List[VerificationDetailResponse] = Field(default_factory=list)
 
 
 
