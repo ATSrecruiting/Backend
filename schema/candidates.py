@@ -178,7 +178,7 @@ class GetCandidatePersonalInfo(BaseModel):
 
 class VerificationDetailResponse(BaseModel):
     recruiter_id: int
-    verified_at: datetime
+    verified_at: Optional[datetime]
     recruiter_name: Optional[str] = None  # Add the name field
 
 

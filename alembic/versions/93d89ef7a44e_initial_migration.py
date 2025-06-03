@@ -1,8 +1,8 @@
-"""Initial migration
+"""initial migration
 
-Revision ID: 582de5ea198b
+Revision ID: 93d89ef7a44e
 Revises: 
-Create Date: 2025-03-21 12:18:05.523290
+Create Date: 2025-06-02 10:12:27.019631
 
 """
 from typing import Sequence, Union
@@ -10,10 +10,11 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
-import pgvector.sqlalchemy.vector
+import pgvector.sqlalchemy
+
 
 # revision identifiers, used by Alembic.
-revision: str = '582de5ea198b'
+revision: str = '93d89ef7a44e'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -36,6 +37,9 @@ def upgrade() -> None:
     sa.Column('username', sa.String(), nullable=False),
     sa.Column('email', sa.String(), nullable=False),
     sa.Column('password', sa.String(), nullable=False),
+    sa.Column('account_type', sa.Enum('candidate', 'recruiter', name='account_type_enum'), nullable=False),
+    sa.Column('profile_picture', sa.UUID(), nullable=True),
+    sa.ForeignKeyConstraint(['profile_picture'], ['attachments.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_users_email'), 'users', ['email'], unique=True)
@@ -52,17 +56,18 @@ def upgrade() -> None:
     sa.Column('date_of_birth', sa.DateTime(), nullable=True),
     sa.Column('years_of_experience', sa.Integer(), nullable=True),
     sa.Column('job_title', sa.String(), nullable=True),
-    sa.Column('work_experience', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-    sa.Column('education', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('skills', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('certifications', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('personal_growth', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('who_am_i', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('success_stories', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('status', sa.String(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('resume_id', sa.UUID(), nullable=True),
-    sa.Column('embedding', pgvector.sqlalchemy.vector.VECTOR(dim=768), nullable=True),
+    sa.Column('embedding', pgvector.sqlalchemy.vector.VECTOR(dim=3072), nullable=True),
     sa.Column('is_embedding_ready', sa.Boolean(), nullable=False),
     sa.ForeignKeyConstraint(['resume_id'], ['attachments.id'], ),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_candidates_id'), 'candidates', ['id'], unique=False)
@@ -73,7 +78,7 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('last_activity', sa.DateTime(timezone=True), nullable=False),
     sa.Column('candidates', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_chat_sessions_id'), 'chat_sessions', ['id'], unique=False)
@@ -84,7 +89,7 @@ def upgrade() -> None:
     sa.Column('first_name', sa.String(), nullable=True),
     sa.Column('last_name', sa.String(), nullable=True),
     sa.Column('profile_picture', sa.String(), nullable=True),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_recruiters_id'), 'recruiters', ['id'], unique=False)
@@ -98,20 +103,43 @@ def upgrade() -> None:
     sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('user_id', sa.BigInteger(), nullable=False),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_table('temp_chat_sessions',
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('candidates', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_temp_chat_sessions_id'), 'temp_chat_sessions', ['id'], unique=False)
+    op.create_index(op.f('ix_temp_chat_sessions_user_id'), 'temp_chat_sessions', ['user_id'], unique=False)
     op.create_table('chat_messages',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('chat_session_id', sa.UUID(), nullable=False),
     sa.Column('sender', sa.String(), nullable=False),
     sa.Column('content', sa.String(), nullable=False),
     sa.Column('timestamp', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['chat_session_id'], ['chat_sessions.id'], ),
+    sa.ForeignKeyConstraint(['chat_session_id'], ['chat_sessions.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_chat_messages_chat_session_id'), 'chat_messages', ['chat_session_id'], unique=False)
     op.create_index(op.f('ix_chat_messages_id'), 'chat_messages', ['id'], unique=False)
+    op.create_table('education',
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('candidate_id', sa.Integer(), nullable=False),
+    sa.Column('degree', sa.String(), nullable=True),
+    sa.Column('major', sa.String(), nullable=True),
+    sa.Column('school', sa.String(), nullable=True),
+    sa.Column('graduation_date', sa.DateTime(), nullable=True),
+    sa.Column('attachment_ids', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('verified_by', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.ForeignKeyConstraint(['candidate_id'], ['candidates.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_education_candidate_id'), 'education', ['candidate_id'], unique=False)
+    op.create_index(op.f('ix_education_id'), 'education', ['id'], unique=False)
     op.create_table('vacancies',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('recruiter_id', sa.Integer(), nullable=False),
@@ -121,22 +149,46 @@ def upgrade() -> None:
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('end_date', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['recruiter_id'], ['recruiters.id'], ),
+    sa.ForeignKeyConstraint(['recruiter_id'], ['recruiters.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_vacancies_id'), 'vacancies', ['id'], unique=False)
     op.create_index(op.f('ix_vacancies_recruiter_id'), 'vacancies', ['recruiter_id'], unique=False)
+    op.create_table('work_experience',
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('candidate_id', sa.Integer(), nullable=False),
+    sa.Column('title', sa.String(), nullable=True),
+    sa.Column('company', sa.String(), nullable=True),
+    sa.Column('start_date', sa.DateTime(), nullable=True),
+    sa.Column('end_date', sa.DateTime(), nullable=True),
+    sa.Column('location', sa.String(), nullable=True),
+    sa.Column('attachment_ids', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('verified_by', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.ForeignKeyConstraint(['candidate_id'], ['candidates.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_work_experience_candidate_id'), 'work_experience', ['candidate_id'], unique=False)
+    op.create_index(op.f('ix_work_experience_id'), 'work_experience', ['id'], unique=False)
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_index(op.f('ix_work_experience_id'), table_name='work_experience')
+    op.drop_index(op.f('ix_work_experience_candidate_id'), table_name='work_experience')
+    op.drop_table('work_experience')
     op.drop_index(op.f('ix_vacancies_recruiter_id'), table_name='vacancies')
     op.drop_index(op.f('ix_vacancies_id'), table_name='vacancies')
     op.drop_table('vacancies')
+    op.drop_index(op.f('ix_education_id'), table_name='education')
+    op.drop_index(op.f('ix_education_candidate_id'), table_name='education')
+    op.drop_table('education')
     op.drop_index(op.f('ix_chat_messages_id'), table_name='chat_messages')
     op.drop_index(op.f('ix_chat_messages_chat_session_id'), table_name='chat_messages')
     op.drop_table('chat_messages')
+    op.drop_index(op.f('ix_temp_chat_sessions_user_id'), table_name='temp_chat_sessions')
+    op.drop_index(op.f('ix_temp_chat_sessions_id'), table_name='temp_chat_sessions')
+    op.drop_table('temp_chat_sessions')
     op.drop_table('sessions')
     op.drop_index(op.f('ix_recruiters_user_id'), table_name='recruiters')
     op.drop_index(op.f('ix_recruiters_id'), table_name='recruiters')

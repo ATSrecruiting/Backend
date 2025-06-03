@@ -1,3 +1,4 @@
+from os import major
 from sqlalchemy import (
     Enum,
     Integer,
@@ -119,8 +120,6 @@ class Candidate(Base):
     date_of_birth: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     years_of_experience: Mapped[int] = mapped_column(Integer, nullable=True)
     job_title: Mapped[str] = mapped_column(String, nullable=True)
-    work_experience: Mapped[list[dict]] = mapped_column(JSONB, nullable=True)
-    education: Mapped[list[dict]] = mapped_column(JSONB, nullable=True)
     skills: Mapped[dict] = mapped_column(JSONB, nullable=True)
     certifications: Mapped[list[dict]] = mapped_column(JSONB, nullable=True)
     personal_growth : Mapped[list[dict]] = mapped_column(JSONB, nullable=True)
@@ -143,6 +142,84 @@ class Candidate(Base):
     resume: Mapped["Attachment"] = relationship(
         "Attachment", back_populates="candidate"
     )
+    work_experiences: Mapped[list["WorkExperience"]] = relationship(
+        "WorkExperience", back_populates="candidate", cascade="all, delete-orphan"
+    )
+    educations: Mapped[list["Education"]] = relationship(
+        "Education", back_populates="candidate", cascade="all, delete-orphan"
+    )
+    
+
+
+class WorkExperience(Base):
+    __tablename__ = "work_experience"
+    
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+    )
+    candidate_id : Mapped[int] = mapped_column(
+        Integer, ForeignKey("candidates.id", ondelete="CASCADE"), index=True
+    )
+    title: Mapped[str] = mapped_column(String, nullable=True)
+    company: Mapped[str] = mapped_column(String, nullable=True)
+    start_date: Mapped[str] = mapped_column(String, nullable=True)
+    end_date: Mapped[str] = mapped_column(String, nullable=True)
+    location: Mapped[str] = mapped_column(String, nullable=True)
+    attachment_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        JSONB, nullable=True, default=lambda: []
+    )
+    verified_by: Mapped[list[dict]] = mapped_column(
+        JSONB, nullable=True, default=lambda: []
+    )
+
+    # Relationship
+    candidate: Mapped["Candidate"] = relationship("Candidate", back_populates="work_experiences")
+
+class WorkExperienceVerification(Base):
+    __tablename__ = "work_experience_verification"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+    )
+    work_experience_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("work_experience.id", ondelete="CASCADE"), index=True
+    )
+    verifier_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    verification_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=datetime.now(timezone.utc))
+
+
+
+
+class Education(Base):
+    __tablename__ = "education"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+    )
+    candidate_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("candidates.id", ondelete="CASCADE"), index=True
+    )
+    degree: Mapped[str] = mapped_column(String, nullable=True)
+    major: Mapped[str] = mapped_column(String, nullable=True)
+    school: Mapped[str] = mapped_column(String, nullable=True)
+    graduation_date: Mapped[str] = mapped_column(String, nullable=True)
+    attachment_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        JSONB, nullable=True, default=lambda: []
+    )
+    verified_by: Mapped[list[int]] = mapped_column(
+        JSONB, nullable=True, default=lambda: []
+    )
+    # Relationship
+
+    candidate: Mapped["Candidate"] = relationship("Candidate", back_populates="educations")
+
+
+
+
+
+
+
+
 
 
 class Vacancy(Base):

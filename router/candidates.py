@@ -1,10 +1,11 @@
 from typing import List, Tuple, Optional
-from urllib import response
-from sentence_transformers import SentenceTransformer
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Query
-from sqlalchemy import select
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Query, status
+from regex import E
+from sqlalchemy import select, insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sympy import use
 
 from auth.Oth2 import get_current_user
 from auth.password import hash_password
@@ -12,7 +13,6 @@ from auth.password import hash_password
 from schema.candidates import (
     Address,
     Certification,
-    Education,
     GetCandidateCertification,
     GetCandidateEducation,
     GetCandidatePersonalGrowth,
@@ -35,14 +35,13 @@ from schema.candidates import (
     VerifyPersonalGrowthResponse,
     VerifyWorkExperienceResponse,
     WhoAmI,
-    WorkExperience,
     VerificationDetail,
     VerificationDetailResponse,
     UnverifyWorkExperienceResponse,
 )
 from schema.pagination import Pagination
 
-from db.models import Attachment, Candidate, User, TempChatSession, Recruiter
+from db.models import Attachment, Candidate, User, TempChatSession, Recruiter, WorkExperience, Education, WorkExperienceVerification
 from db.session import get_db
 
 from tasks.candidates import embed_candidates_data
@@ -89,56 +88,60 @@ async def update_personal_info(
 ):
     try:
         candidate = Candidate(
-            user_id=user_id,
-            first_name=candidate_data.first_name,
-            last_name=candidate_data.last_name,
-            email=candidate_data.email,
-            phone_number=candidate_data.phone_number,
-            address=candidate_data.address.model_dump()
-            if candidate_data.address 
-            else None,
-            date_of_birth=None,
-            years_of_experience=candidate_data.years_of_experience,
-            job_title=candidate_data.job_title,
-            work_experience=[
-                work.model_dump_json() for work in candidate_data.work_experience
-            ]
-            if candidate_data.work_experience
-            else [],
-            education=[edu.model_dump_json() for edu in candidate_data.education]
-            if candidate_data.education
-            else [],
-            skills=candidate_data.skills.model_dump()
-            if candidate_data.skills
-            else None,
-            certifications=[
-                cert.model_dump_json() for cert in candidate_data.certifications
-            ]
-            if candidate_data.certifications
-            else [],
-            personal_growth=[
-                pg.model_dump_json() for pg in candidate_data.personal_growth
-            ]
-            if candidate_data.personal_growth
-            else [],
-            who_am_i= candidate_data.who_am_i.model_dump_json() 
-            if candidate_data.who_am_i
-            else None,
-            success_stories=[
-                ss.model_dump_json() for ss in candidate_data.success_stories
-            ]
-            if candidate_data.success_stories
-            else [],
-            resume_id=candidate_data.file_id,
+            user_id = user_id,
+            first_name = candidate_data.first_name,
+            last_name = candidate_data.last_name,
+            email = candidate_data.email,
+            phone_number = candidate_data.phone_number,
+            address = candidate_data.address.model_dump() if candidate_data.address else None,
+            years_of_experience = candidate_data.years_of_experience,
+            job_title = candidate_data.job_title,
+            skills = candidate_data.skills.model_dump() if candidate_data.skills else None,
         )
+
         db.add(candidate)
+        await db.flush()
+
+        if candidate_data.work_experience:
+            work_exp_data = [
+                {
+                    "candidate_id": candidate.id,
+                    "title": exp.title,
+                    "company": exp.company,
+                    "start_date": exp.start_date,
+                    "end_date": exp.end_date,
+                    "location": exp.location,
+                    "attachment_ids": exp.attachment_ids,
+                }
+                for exp in candidate_data.work_experience
+            ]
+            await db.execute(insert(WorkExperience),work_exp_data)
+        
+        if candidate_data.education:
+            education_data = [
+                {
+                    "candidate_id": candidate.id,
+                    "degree": edu.degree,
+                    "major": edu.major,
+                    "school": edu.school,
+                    "graduation_date": edu.graduation_date,
+                    "attachment_ids": edu.attachment_ids,
+                }
+                for edu in candidate_data.education
+            ]
+            await db.execute(insert(Education),education_data)
+        
         await db.commit()
         background_tasks.add_task(embed_candidates_data, candidate.id)
-
-        return {"message": "Personal info updated successfully"}
+        return {"message": "Candidate personal information updated successfully."}
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        print(f"Error updating candidate info: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error updating candidate info: {str(e)}")
+    
+
+
+
 
 
 @router.get("", response_model=List[ListCandidatesResponse])
@@ -185,64 +188,48 @@ async def list_candidates(
                 created_at=candidate.created_at.isoformat()
                 if candidate.created_at
                 else "2000-01-01",
-                tags=candidate.skills["technical_skills"][:3],
+                tags=candidate.skills["technical_skills"][:3] if candidate.skills and "technical_skills" in candidate.skills else [],
                 rating=5,
             )
             for candidate in candidates
         ]
     except Exception as e:
+        print(f"Error fetching candidates: {str(e)}")
         raise HTTPException(
             status_code=500, detail=f"Error fetching candidates: {str(e)}"
         )
     
 
 @router.get("/{candidate_id}/education", response_model=List[GetCandidateEducation])
-async def get_candidate_education(
+async def list_candidate_education(
     candidate_id: int, db: AsyncSession = Depends(get_db)
 ):
-    try : 
-        result = await db.execute(
-            select(Candidate.education).filter(Candidate.id == candidate_id).limit(1)
+    try:
+        # First check if candidate exists
+        candidate_exists_result = await db.execute(
+            select(Candidate.id).filter(Candidate.id == candidate_id).limit(1)
         )
-        raw_education_list = result.scalar_one_or_none()
+        if candidate_exists_result.scalar_one_or_none() is None:
+            raise HTTPException(status_code=404, detail="Candidate not found")
 
-        if raw_education_list is None:
-            candidate_exists_result = await db.execute(
-                select(Candidate.id).filter(Candidate.id == candidate_id).limit(1)
-            )
-            if candidate_exists_result.scalar_one_or_none() is None:
-                raise HTTPException(status_code=404, detail="Candidate not found")
-            else:
-                return []
-        
-        # Validate data structure using Pydantic (Education model)
-        validated_education: List[Education] = []
-        if isinstance(raw_education_list, list):
-            try:
-                validated_education = [
-                    Education.model_validate(json.loads(edu))
-                    if isinstance(edu, str)
-                    else Education.model_validate(edu)
-                    for edu in raw_education_list
-                ]
-            except Exception:
-                raise HTTPException(
-                    status_code=500,
-                    detail="Error validating stored education data.",
-                )
-        else:
+        # Query education records directly from the education table
+        education_result = await db.execute(
+            select(Education).filter(Education.candidate_id == candidate_id)
+        )
+        education_records = education_result.scalars().all()
+
+        if not education_records:
             return []
-        
-        if not validated_education:
-            return []
-        
-        
+
+        # Collect all recruiter IDs from verified_by fields
         all_recruiter_ids = set()
-        for edu in validated_education:
-            if edu.verifications:
-                for verification in edu.verifications:
-                    all_recruiter_ids.add(verification.recruiter_id)
-        
+        for edu in education_records:
+            if edu.verified_by:
+                # Now verified_by is a list of dicts with 'id' and 'verified_at'
+                for verification in edu.verified_by:
+                    if isinstance(verification, dict) and 'id' in verification:
+                        all_recruiter_ids.add(verification['id'])
+
         # Fetch Recruiter Names
         recruiter_name_dict: Dict[int, str] = {}
         if all_recruiter_ids:
@@ -252,28 +239,46 @@ async def get_candidate_education(
                 )
             )
             recruiters_data = recruiter_result.all()
-
             for rec in recruiters_data:
                 first_name = getattr(rec, "first_name", "") or ""
                 last_name = getattr(rec, "last_name", "") or ""
                 recruiter_name_dict[rec.id] = f"{first_name} {last_name}".strip()
-        
-        # Process validated education and build the final response
+
+        # Build the response
         response_education: List[GetCandidateEducation] = []
-        for edu in validated_education:
-            exp_verifications_response = []
-            if edu.verifications:
-                for verification in edu.verifications:
-                    recruiter_name = recruiter_name_dict.get(
-                        verification.recruiter_id, "Unknown Recruiter"
-                    )
-                    exp_verifications_response.append(
-                        VerificationDetailResponse(
-                            recruiter_id=verification.recruiter_id,
-                            verified_at=verification.verified_at,
-                            recruiter_name=recruiter_name,
+        for edu in education_records:
+            # Build verifications response based on verified_by list of dicts
+            verifications_response = []
+            if edu.verified_by:
+                for verification in edu.verified_by:
+                    if isinstance(verification, dict) and 'id' in verification:
+                        recruiter_id = verification['id']
+                        verified_at = verification.get('verified_at')
+                        
+                        recruiter_name = recruiter_name_dict.get(
+                            recruiter_id, "Unknown Recruiter"
                         )
-                    )
+                        
+                        # Convert verified_at to datetime if it's a string
+                        verified_at_datetime = None
+                        if verified_at:
+                            if isinstance(verified_at, str):
+                                try:
+                                    # Assuming ISO format datetime string
+                                    verified_at_datetime = datetime.fromisoformat(verified_at.replace('Z', '+00:00'))
+                                except ValueError:
+                                    # Handle other datetime formats if needed
+                                    verified_at_datetime = None
+                            elif isinstance(verified_at, datetime):
+                                verified_at_datetime = verified_at
+
+                        verifications_response.append(
+                            VerificationDetailResponse(
+                                recruiter_id=recruiter_id,
+                                verified_at=verified_at_datetime,
+                                recruiter_name=recruiter_name,
+                            )
+                        )
 
             response_education.append(
                 GetCandidateEducation(
@@ -283,17 +288,20 @@ async def get_candidate_education(
                     school=edu.school,
                     graduation_date=edu.graduation_date,
                     attachments=edu.attachment_ids,
-                    verifications=exp_verifications_response,
+                    verifications=verifications_response,
                 )
             )
+
         return response_education
+
     except HTTPException:
         raise
-    except Exception:
-        # logger.error(...)
+    except Exception as e:
+        # logger.error(f"Error fetching education for candidate {candidate_id}: {str(e)}")
         raise HTTPException(
             status_code=500, detail="An unexpected internal server error occurred."
         )
+        
 
 
 
@@ -412,123 +420,99 @@ async def get_candidate_personal_info(
 @router.get(
     "/{candidate_id}/work_experience", response_model=List[GetCandidateWorkExperience]
 )
-async def get_candidate_work_experience(
+async def list_candidate_work_experience(
     candidate_id: int, db: AsyncSession = Depends(get_db)
 ):
     try:
-        # 1. Fetch raw work experience data (same as before)
-        result = await db.execute(
-            select(Candidate.work_experience)
-            .filter(Candidate.id == candidate_id)
-            .limit(1)
+        candidate_exists_result = await db.execute(
+            select(Candidate.id).filter(Candidate.id == candidate_id).limit(1)
         )
-        raw_work_experience_list = result.scalar_one_or_none()
+        if candidate_exists_result.scalar_one_or_none() is None:
+            raise HTTPException(status_code=404, detail="Candidate not found")
+        
+        work_exp_result = await db.execute(
+            select(WorkExperience).filter(WorkExperience.candidate_id == candidate_id)
+        )
+        work_experience_records = work_exp_result.scalars().all()
 
-        if raw_work_experience_list is None:
-            candidate_exists_result = await db.execute(
-                select(Candidate.id).filter(Candidate.id == candidate_id).limit(1)
-            )
-            if candidate_exists_result.scalar_one_or_none() is None:
-                raise HTTPException(status_code=404, detail="Candidate not found")
-            else:
-                return []
-
-        # 2. Validate data structure using Pydantic (WorkExperience model)
-        validated_work_experiences: List[WorkExperience] = []
-        if isinstance(raw_work_experience_list, list):
-            try:
-                validated_work_experiences = [
-                    WorkExperience.model_validate(json.loads(exp))
-                    if isinstance(exp, str)
-                    else WorkExperience.model_validate(exp)
-                    for exp in raw_work_experience_list
-                ]
-            except Exception:
-                # logger.error(...)
-                raise HTTPException(
-                    status_code=500,
-                    detail="Error validating stored work experience data.",
-                )
-        else:
+        if not work_experience_records:
             return []
-
-        if not validated_work_experiences:
-            return []
-
-        # 3. Collect unique Attachment IDs and Recruiter IDs
+        
         all_recruiter_ids = set()
-        for exp in validated_work_experiences:
-            # Collect recruiter IDs from the *stored* VerificationDetail objects
-            if exp.verifications:
-                for verification in exp.verifications:
-                    all_recruiter_ids.add(verification.recruiter_id)  # Add recruiter_id
-
-    
-        # 5. Fetch Recruiter Names (NEW LOGIC)
+        for work_exp in work_experience_records:
+            if work_exp.verified_by:
+                for verification in work_exp.verified_by:
+                    if isinstance(verification, dict) and 'id' in verification:
+                        all_recruiter_ids.add(verification['id'])
+        
+        # Fetch Recruiter Names
         recruiter_name_dict: Dict[int, str] = {}
         if all_recruiter_ids:
-            # --- Query to get recruiter names ---
-            # Adjust based on your User/Recruiter table structure
-            # Example: Assuming Recruiter table has id, first_name, last_name
             recruiter_result = await db.execute(
                 select(Recruiter.id, Recruiter.first_name, Recruiter.last_name).filter(
                     Recruiter.id.in_(all_recruiter_ids)
                 )
-                # Example if names are on User table and Recruiter links via user_id:
-                # select(Recruiter.id, User.first_name, User.last_name)
-                # .select_from(join(Recruiter, User, Recruiter.user_id == User.id))
-                # .filter(Recruiter.id.in_(all_recruiter_ids))
             )
             recruiters_data = recruiter_result.all()
 
-            # Build the lookup dictionary
             for rec in recruiters_data:
-                # Handle potential missing names gracefully
                 first_name = getattr(rec, "first_name", "") or ""
                 last_name = getattr(rec, "last_name", "") or ""
                 recruiter_name_dict[rec.id] = f"{first_name} {last_name}".strip()
-            # --- End Recruiter Name Fetching ---
-
-        # 6. Process validated experiences and build the final response
-        response_work_experiences: List[GetCandidateWorkExperience] = []
-        for exp in validated_work_experiences:
-            # Build verifications list including names (NEW)
-            exp_verifications_response = []
-            if exp.verifications:
-                for (
-                    verification
-                ) in exp.verifications:  # Iterate through stored VerificationDetail
-                    recruiter_name = recruiter_name_dict.get(
-                        verification.recruiter_id, "Unknown Recruiter"
-                    )  # Look up name
-                    exp_verifications_response.append(
-                        VerificationDetailResponse(
-                            recruiter_id=verification.recruiter_id,
-                            verified_at=verification.verified_at,
-                            recruiter_name=recruiter_name,  # Add the fetched name
+        
+        # Build the response
+        response_work_experience: List[GetCandidateWorkExperience] = []
+        for work_exp in work_experience_records:
+            # Build verifications response based on verified_by list of dicts
+            verifications_response = []
+            if work_exp.verified_by:
+                for verification in work_exp.verified_by:
+                    if isinstance(verification, dict) and 'id' in verification:
+                        recruiter_id = verification['id']
+                        verified_at = verification.get('verified_at')
+                        
+                        recruiter_name = recruiter_name_dict.get(
+                            recruiter_id, "Unknown Recruiter"
                         )
-                    )
+                        
+                        # Convert verified_at to datetime if it's a string
+                        verified_at_datetime = None
+                        if verified_at:
+                            if isinstance(verified_at, str):
+                                try:
+                                    # Assuming ISO format datetime string
+                                    verified_at_datetime = datetime.fromisoformat(verified_at.replace('Z', '+00:00'))
+                                except ValueError:
+                                    # Handle other datetime formats if needed
+                                    verified_at_datetime = None
+                            elif isinstance(verified_at, datetime):
+                                verified_at_datetime = verified_at
 
-            # Create the final response object for this work experience
-            response_work_experiences.append(
+                        verifications_response.append(
+                            VerificationDetailResponse(
+                                recruiter_id=recruiter_id,
+                                verified_at=verified_at_datetime,
+                                recruiter_name=recruiter_name,
+                            )
+                        )
+
+            response_work_experience.append(
                 GetCandidateWorkExperience(
-                    id=exp.id,
-                    title=exp.title,
-                    company=exp.company,
-                    start_date=exp.start_date,
-                    end_date=exp.end_date,
-                    location=exp.location,
-                    attachments=exp.attachment_ids,
-                    verifications=exp_verifications_response,  # Use the list with names
+                    id=work_exp.id,
+                    title=work_exp.title,
+                    company=work_exp.company,
+                    start_date=work_exp.start_date,
+                    end_date=work_exp.end_date if work_exp.end_date else None,
+                    location=work_exp.location,
+                    attachments=work_exp.attachment_ids,
+                    verifications=verifications_response,
                 )
             )
-
-        return response_work_experiences
-
+        return response_work_experience
     except HTTPException:
         raise
-    except Exception:
-        # logger.error(...)
+    except Exception as e:
+        # logger.error(f"Error fetching work experience for candidate {candidate_id}: {str(e)}")
         raise HTTPException(
             status_code=500, detail="An unexpected internal server error occurred."
         )
@@ -900,267 +884,138 @@ async def get_candidate_who_am_i(
 )
 async def verify_work_experience(
     candidate_id: int,
-    work_id: str,
+    work_id: UUID,  # Changed to UUID type for proper validation
     dbps: Tuple[User, AsyncSession] = Depends(get_current_user),
 ):
     user, db = dbps
-    recruiter_id = None  # Initialize recruiter_id
 
     try:
+        # Authorization check
         if user.account_type != "recruiter" or user.recruiter is None:
             raise HTTPException(
-                status_code=403, detail="Unauthorized access: User is not a recruiter."
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only recruiters can verify work experiences"
             )
 
-        # Get the recruiter ID performing the action
-        recruiter_id = user.recruiter.id
+        # Verify the work experience exists and belongs to the candidate
+        work_experience = await db.get(WorkExperience, work_id)
+        if not work_experience:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Work experience not found"
+            )
+            
+        if work_experience.candidate_id != candidate_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Work experience does not belong to the specified candidate"
+            )
 
-        # Fetch the candidate
-        result = await db.execute(
-            select(Candidate).filter(Candidate.id == candidate_id)
+        # Check if already verified by this recruiter
+        existing_verification = await db.execute(
+            select(WorkExperienceVerification).where(
+                WorkExperienceVerification.work_experience_id == work_id,
+                WorkExperienceVerification.recruiter_id == user.recruiter.id
+            )
         )
-        candidate = result.scalar_one_or_none()
-        if candidate is None:
-            raise HTTPException(status_code=404, detail="Candidate not found")
-
-        # Ensure work_experience is not None and is a list
-        if candidate.work_experience is None:
-            candidate.work_experience = []  # Initialize if None
-
-        # Load work_experience entries using Pydantic for validation
-        work_experience_data: List[WorkExperience] = []
-        try:
-            work_experience_data = [
-                WorkExperience.model_validate(json.loads(exp))
-                if isinstance(exp, str)
-                else WorkExperience.model_validate(exp)
-                for exp in candidate.work_experience
-            ]
-        except Exception as validation_error:
-            # Handle potential JSON decoding or Pydantic validation errors during loading
+        if existing_verification.scalar_one_or_none():
             raise HTTPException(
-                status_code=400,
-                detail=f"Error parsing work experience data: {validation_error}",
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This work experience has already been verified by you"
             )
 
-        if not work_experience_data:
-            # This case might be less likely if initialized above, but good to keep
-            raise HTTPException(
-                status_code=404,
-                detail="Work experience list is empty for this candidate.",
-            )
+        # Create new verification
+        verification = WorkExperienceVerification(
+            work_experience_id=work_id,
+            recruiter_id=user.recruiter.id,  # Changed from verifier_id to recruiter_id
+            verification_date=datetime.now(timezone.utc)
+        )
 
-        # Find the target work experience entry and update it
-        target_exp: Optional[WorkExperience] = None
-        for exp in work_experience_data:
-            if str(exp.id) == work_id:
-                target_exp = exp
-                break
-
-        if target_exp is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Work experience with ID {work_id} not found for this candidate.",
-            )
-
-        # --- Core Logic Change ---
-        # Check if this recruiter has already verified this experience
-        already_verified = False
-        for verification in target_exp.verifications:
-            if verification.recruiter_id == recruiter_id:
-                already_verified = True
-                break
-
-        if not already_verified:
-            # Add new verification detail if not already verified by this recruiter
-            new_verification = VerificationDetail(recruiter_id=recruiter_id)
-            target_exp.verifications.append(new_verification)
-
-            # Re-encode the updated list for DB storage
-            updated_work_experience_json = [
-                exp.model_dump_json() for exp in work_experience_data
-            ]
-
-            # Save the updated data
-            await db.execute(
-                update(Candidate)
-                .where(Candidate.id == candidate_id)
-                .values(
-                    work_experience=updated_work_experience_json
-                )  # Save the JSON string list
-            )
-            await db.commit()
-
-            return VerifyWorkExperienceResponse(
-                work_experience_id=work_id,
-                recruiter_id=recruiter_id,
-                message="Work experience verified successfully.",
-            )
-        else:
-            # Optionally, return a specific message or status if already verified by this user
-            # For simplicity, we can return the same success response,
-            # or change the message. Let's indicate it was already verified.
-            return VerifyWorkExperienceResponse(
-                work_experience_id=work_id,
-                recruiter_id=recruiter_id,
-                message="Work experience was already verified by this recruiter.",
-            )
-    # Alternatively, raise HTTPException(status_code=409, detail="Already verified by this recruiter")
-
+        db.add(verification)
+        await db.commit()
+        
+        return VerifyWorkExperienceResponse(
+            work_experience_id=str(work_id),  # Convert UUID to string for response
+            recruiter_id=user.recruiter.id,
+            message="Work experience verified successfully."
+        )
+        
     except HTTPException:
-        # Re-raise HTTPExceptions directly to let FastAPI handle them
         raise
-    except Exception:
+    except Exception as e:
         await db.rollback()
-        # Log the full error for debugging
-        # logger.error(f"Internal server error during work experience verification: {e}", exc_info=True)
         raise HTTPException(
-            status_code=500, detail="An unexpected internal server error occurred."
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred during verification: {str(e)}"
         )
 
 
-@router.put(
+
+@router.delete(  # Using DELETE method as we're removing a verification
     "/{candidate_id}/work_experience/{work_id}/unverify",
     response_model=UnverifyWorkExperienceResponse,
 )
 async def unverify_work_experience(
     candidate_id: int,
-    work_id: str,
+    work_id: UUID,
     dbps: Tuple[User, AsyncSession] = Depends(get_current_user),
 ):
-    """
-    Removes a verification mark placed by the requesting recruiter
-    on a specific work experience entry for a candidate.
-    """
     user, db = dbps
-    recruiter_id = None  # Initialize recruiter_id
 
     try:
-        # 1. Authorization: Ensure user is a recruiter
+        # Authorization check
         if user.account_type != "recruiter" or user.recruiter is None:
             raise HTTPException(
-                status_code=403, detail="Unauthorized access: User is not a recruiter."
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only recruiters can unverify work experiences"
             )
 
-        recruiter_id = user.recruiter.id
+        # Verify the work experience exists and belongs to the candidate
+        work_experience = await db.get(WorkExperience, work_id)
+        if not work_experience:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Work experience not found"
+            )
+            
+        if work_experience.candidate_id != candidate_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Work experience does not belong to the specified candidate"
+            )
 
-        # 2. Fetch Candidate
-        result = await db.execute(
-            select(Candidate).filter(Candidate.id == candidate_id)
+        # Find the verification record
+        verification = await db.execute(
+            select(WorkExperienceVerification).where(
+                WorkExperienceVerification.work_experience_id == work_id,
+                WorkExperienceVerification.recruiter_id == user.recruiter.id
+            )
         )
-        candidate = result.scalar_one_or_none()
-        if candidate is None:
-            raise HTTPException(status_code=404, detail="Candidate not found")
-
-        # 3. Load and Parse Work Experience Data
-        if candidate.work_experience is None:
-            # If it's None, there's definitely no work experience to unverify
+        verification = verification.scalar_one_or_none()
+        
+        if not verification:
             raise HTTPException(
-                status_code=404,
-                detail=f"No work experience found for candidate {candidate_id} to unverify.",
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No verification record found for this work experience and recruiter"
             )
 
-        work_experience_data: List[WorkExperience] = []
-        try:
-            # Handle cases where it might be None or empty before iterating
-            raw_exp_list = candidate.work_experience or []
-            work_experience_data = [
-                WorkExperience.model_validate(json.loads(exp))
-                if isinstance(exp, str)
-                else WorkExperience.model_validate(exp)
-                for exp in raw_exp_list
-            ]
-        except Exception as validation_error:
-            # Handle potential JSON decoding or Pydantic validation errors
-            raise HTTPException(
-                status_code=400,
-                detail=f"Error parsing work experience data: {validation_error}",
-            )
-
-        if not work_experience_data:
-            raise HTTPException(
-                status_code=404,
-                detail="Work experience list is empty for this candidate.",
-            )
-
-        # 4. Find the Target Work Experience Entry
-        target_exp: Optional[WorkExperience] = None
-        target_exp_index: Optional[int] = (
-            None  # Keep track of index to update the list later
+        # Remove the verification
+        await db.delete(verification)
+        await db.commit()
+        
+        return UnverifyWorkExperienceResponse(
+            work_experience_id=str(work_id),  # Convert UUID to string for response
+            recruiter_id=user.recruiter.id,
+            message="Work experience unverification successful."
         )
-        for index, exp in enumerate(work_experience_data):
-            # Ensure comparison is consistent (e.g., both strings)
-            if str(exp.id) == str(work_id):
-                target_exp = exp
-                target_exp_index = index
-                break
-
-        if target_exp is None or target_exp_index is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Work experience with ID {work_id} not found for this candidate.",
-            )
-
-        # 5. --- Core Logic Change: Remove Verification ---
-        initial_verifications_count = len(target_exp.verifications)
-
-        # Filter the list, keeping only verifications NOT made by the current recruiter
-        original_verifications = target_exp.verifications
-        target_exp.verifications = [
-            verification
-            for verification in original_verifications
-            if verification.recruiter_id != recruiter_id
-        ]
-
-        verifications_removed = (
-            len(target_exp.verifications) < initial_verifications_count
-        )
-
-        # 6. Save Changes if Verification was Removed
-        if verifications_removed:
-            # Update the specific work experience item in the main list
-            work_experience_data[target_exp_index] = target_exp
-
-            # Re-encode the *entire updated* list for DB storage
-            updated_work_experience_json = [
-                exp.model_dump_json() for exp in work_experience_data
-            ]
-
-            # Persist changes to the database
-            await db.execute(
-                update(Candidate)
-                .where(Candidate.id == candidate_id)
-                .values(
-                    work_experience=updated_work_experience_json
-                )  # Save the updated JSON list
-            )
-            await db.commit()
-
-            return UnverifyWorkExperienceResponse(
-                work_experience_id=work_id,
-                recruiter_id=recruiter_id,
-                message="Work experience verification removed successfully.",
-            )
-        else:
-            # If no verification by this recruiter was found, nothing was changed.
-            return UnverifyWorkExperienceResponse(
-                work_experience_id=work_id,
-                recruiter_id=recruiter_id,
-                message="Work experience was not previously verified by this recruiter. No changes made.",
-            )
-            # Alternative: Could raise a 404 or 400 if you prefer an error in this case
-            # raise HTTPException(status_code=404, detail="Verification by this recruiter not found for this work experience.")
-
+        
     except HTTPException:
-        # Re-raise HTTPExceptions directly to let FastAPI handle them
         raise
-    except Exception:
-        # Rollback transaction on any other unexpected error
+    except Exception as e:
         await db.rollback()
-        # Log the error in a real application: logger.error(f"...", exc_info=True)
         raise HTTPException(
-            status_code=500,
-            detail="An unexpected internal server error occurred during unverification.",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred during unverification: {str(e)}"
         )
 
 

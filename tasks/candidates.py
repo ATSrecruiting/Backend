@@ -58,10 +58,6 @@ async def embed_candidates_data(candidate_id: int):
                     Candidate.date_of_birth,
                     Candidate.years_of_experience,
                     Candidate.job_title,
-                    Candidate.work_experience,
-                    Candidate.education,
-                    Candidate.skills,
-                    Candidate.certifications,
                     Attachment.file_path.label("s3_resume_key"), # Renamed label for clarity
                 )
                 .join(Attachment, Candidate.resume_id == Attachment.id, isouter=True)
