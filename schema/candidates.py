@@ -182,6 +182,21 @@ class VerificationDetailResponse(BaseModel):
     recruiter_name: Optional[str] = None  # Add the name field
 
 
+class ListCandidateWorkExperience(BaseModel):
+    id: Optional[UUID] = None
+    title: Optional[str] = None
+    company: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    location: Optional[str] = None
+    skills: Optional[List[str]] = None
+    attachments: List[UUID] | None
+
+
+    # Use the response model that includes the name
+    verifications: List[VerificationDetailResponse] = Field(default_factory=list)
+
+
 class GetCandidateWorkExperience(BaseModel):
     id: Optional[UUID] = None
     title: Optional[str] = None
@@ -189,10 +204,17 @@ class GetCandidateWorkExperience(BaseModel):
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     location: Optional[str] = None
-    attachments: List[UUID] | None 
+    skills: Optional[List[str]] = None
 
-    # Use the response model that includes the name
-    verifications: List[VerificationDetailResponse] = Field(default_factory=list)
+
+class ListCandidateworkExperienceProjectsResponse(BaseModel):
+    id : Optional[UUID] = None
+    work_experience_id: Optional[UUID] = None
+    project_name: Optional[str] = None
+    description: Optional[str] = None
+    team_size: Optional[int] = None
+    impact : Optional[str] = None
+
 
 
 class GetCandidateEducation(BaseModel):

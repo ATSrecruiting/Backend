@@ -19,8 +19,9 @@ from schema.candidates import (
     GetCandidatePersonalInfo,
     GetCandidateSuccessStory,
     GetCandidateWhoAmI,
-    GetCandidateWorkExperience,
+    ListCandidateWorkExperience,
     ListCandidatesFromSessionIdResponse,
+    ListCandidateworkExperienceProjectsResponse,
     PersonalGrowth,
     RegisterCandidateRequest,
     RegisterCandidateResponse,
@@ -38,10 +39,11 @@ from schema.candidates import (
     VerificationDetail,
     VerificationDetailResponse,
     UnverifyWorkExperienceResponse,
+    GetCandidateWorkExperience,
 )
 from schema.pagination import Pagination
 
-from db.models import Attachment, Candidate, User, TempChatSession, Recruiter, WorkExperience, Education, WorkExperienceVerification
+from db.models import Attachment, Candidate, User, TempChatSession, Recruiter, WorkExperience, Education, WorkExperienceProjects, WorkExperienceVerification
 from db.session import get_db
 
 from tasks.candidates import embed_candidates_data
@@ -418,7 +420,7 @@ async def get_candidate_personal_info(
 
 
 @router.get(
-    "/{candidate_id}/work_experience", response_model=List[GetCandidateWorkExperience]
+    "/{candidate_id}/work_experience", response_model=List[ListCandidateWorkExperience]
 )
 async def list_candidate_work_experience(
     candidate_id: int, db: AsyncSession = Depends(get_db)
@@ -438,13 +440,13 @@ async def list_candidate_work_experience(
         if not work_experience_records:
             return []
         
-        all_recruiter_ids = set()
-        for work_exp in work_experience_records:
-            if work_exp.verified_by:
-                for verification in work_exp.verified_by:
-                    if isinstance(verification, dict) and 'id' in verification:
-                        all_recruiter_ids.add(verification['id'])
-        
+        recruiter_ids_result = await db.execute(
+            select(WorkExperienceVerification.verifier_id)
+            .filter(WorkExperienceVerification.work_experience_id.in_(
+                [we.id for we in work_experience_records]
+            ))
+        )
+        all_recruiter_ids = set(recruiter_ids_result.scalars().all())
         # Fetch Recruiter Names
         recruiter_name_dict: Dict[int, str] = {}
         if all_recruiter_ids:
@@ -459,52 +461,39 @@ async def list_candidate_work_experience(
                 first_name = getattr(rec, "first_name", "") or ""
                 last_name = getattr(rec, "last_name", "") or ""
                 recruiter_name_dict[rec.id] = f"{first_name} {last_name}".strip()
-        
         # Build the response
-        response_work_experience: List[GetCandidateWorkExperience] = []
-        for work_exp in work_experience_records:
-            # Build verifications response based on verified_by list of dicts
+        response_work_experience: List[ListCandidateWorkExperience] = []
+        for we in work_experience_records:
             verifications_response = []
-            if work_exp.verified_by:
-                for verification in work_exp.verified_by:
-                    if isinstance(verification, dict) and 'id' in verification:
-                        recruiter_id = verification['id']
-                        verified_at = verification.get('verified_at')
-                        
-                        recruiter_name = recruiter_name_dict.get(
-                            recruiter_id, "Unknown Recruiter"
-                        )
-                        
-                        # Convert verified_at to datetime if it's a string
-                        verified_at_datetime = None
-                        if verified_at:
-                            if isinstance(verified_at, str):
-                                try:
-                                    # Assuming ISO format datetime string
-                                    verified_at_datetime = datetime.fromisoformat(verified_at.replace('Z', '+00:00'))
-                                except ValueError:
-                                    # Handle other datetime formats if needed
-                                    verified_at_datetime = None
-                            elif isinstance(verified_at, datetime):
-                                verified_at_datetime = verified_at
+            # Fetch verifications for this work experience
+            verifications_result = await db.execute(
+                select(WorkExperienceVerification).filter(
+                    WorkExperienceVerification.work_experience_id == we.id
+                )
+            )
+            verifications = verifications_result.scalars().all()
 
-                        verifications_response.append(
-                            VerificationDetailResponse(
-                                recruiter_id=recruiter_id,
-                                verified_at=verified_at_datetime,
-                                recruiter_name=recruiter_name,
-                            )
-                        )
+            for verification in verifications:
+                recruiter_name = recruiter_name_dict.get(
+                    verification.verifier_id, "Unknown Recruiter"
+                )
+                verifications_response.append(
+                    VerificationDetailResponse(
+                        recruiter_id=verification.verifier_id,
+                        verified_at=verification.verification_date,
+                        recruiter_name=recruiter_name,
+                    )
+                )
 
             response_work_experience.append(
-                GetCandidateWorkExperience(
-                    id=work_exp.id,
-                    title=work_exp.title,
-                    company=work_exp.company,
-                    start_date=work_exp.start_date,
-                    end_date=work_exp.end_date if work_exp.end_date else None,
-                    location=work_exp.location,
-                    attachments=work_exp.attachment_ids,
+                ListCandidateWorkExperience(
+                    id=we.id,
+                    title=we.title,
+                    company=we.company,
+                    start_date=we.start_date if we.start_date else None,
+                    end_date=we.end_date if we.end_date else None,
+                    location=we.location,
+                    attachments=we.attachment_ids,
                     verifications=verifications_response,
                 )
             )
@@ -516,6 +505,178 @@ async def list_candidate_work_experience(
         raise HTTPException(
             status_code=500, detail="An unexpected internal server error occurred."
         )
+
+@router.get("/{candidate_id}/work_experience/{work_id}", response_model=GetCandidateWorkExperience)
+async def get_work_experience(
+    candidate_id: int,
+    work_id: UUID,  # Changed to UUID type for proper validation
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        # Verify the work experience exists and belongs to the candidate
+        work_experience = await db.get(WorkExperience, work_id)
+        if not work_experience:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Work experience not found"
+            )
+            
+        if work_experience.candidate_id != candidate_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Work experience does not belong to the specified candidate"
+            )
+        
+        return GetCandidateWorkExperience(
+            id=work_experience.id,
+            title=work_experience.title,
+            company=work_experience.company,
+            start_date=work_experience.start_date,
+            end_date=work_experience.end_date,
+            location=work_experience.location,
+            skills=work_experience.skills,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        # logger.error(f"Error fetching work experience {work_id}: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail="An unexpected internal server error occurred."
+        )
+
+@router.get("/{candidate_id}/work_experience/{work_id}/projects", response_model=List[ListCandidateworkExperienceProjectsResponse])
+async def get_work_experience_projects(
+    candidate_id: int,
+    work_id: UUID,  # Changed to UUID type for proper validation
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        # Verify the work experience exists and belongs to the candidate
+        work_experience = await db.get(WorkExperience, work_id)
+        if not work_experience:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Work experience not found"
+            )
+            
+        if work_experience.candidate_id != candidate_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Work experience does not belong to the specified candidate"
+            )
+
+        # Fetch projects for this work experience
+        projects_result = await db.execute(
+            select(WorkExperienceProjects).filter(
+                WorkExperienceProjects.work_experience_id == work_id
+            )
+        )
+
+        projects = projects_result.scalars().all()
+        if not projects:
+            return []
+        
+        # Build the response
+        response_projects: List[ListCandidateworkExperienceProjectsResponse] = []
+        for project in projects:
+            response_projects.append(
+                ListCandidateworkExperienceProjectsResponse(
+                    id=project.id,
+                    work_experience_id=project.work_experience_id,
+                    project_name=project.project_name,
+                    description=project.description,
+                    team_size=project.team_size,
+                    impact=project.impact,
+                )
+            )
+
+        return response_projects
+    except HTTPException:
+        raise
+    except Exception as e:
+        # logger.error(f"Error fetching projects for work experience {work_id}: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail="An unexpected internal server error occurred."
+        )
+
+
+@router.get("/{candidate_id}/work_experience/{work_id}/verifiers", response_model=List[VerificationDetailResponse])
+async def get_work_experience_verifiers(
+    candidate_id: int,
+    work_id: UUID,  # Changed to UUID type for proper validation
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        # Verify the work experience exists and belongs to the candidate
+        work_experience = await db.get(WorkExperience, work_id)
+        if not work_experience:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Work experience not found"
+            )
+            
+        if work_experience.candidate_id != candidate_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Work experience does not belong to the specified candidate"
+            )
+
+        # Fetch verifications for this work experience
+        verifications_result = await db.execute(
+            select(WorkExperienceVerification).filter(
+                WorkExperienceVerification.work_experience_id == work_id
+            )
+        )
+        verifications = verifications_result.scalars().all()
+
+        if not verifications:
+            return []
+
+        all_recruiter_ids = set()
+        for verification in verifications:
+            all_recruiter_ids.add(verification.verifier_id)
+
+        # Fetch Recruiter Names
+        recruiter_name_dict: Dict[int, str] = {}
+        if all_recruiter_ids:
+            recruiter_result = await db.execute(
+                select(Recruiter.id, Recruiter.first_name, Recruiter.last_name).filter(
+                    Recruiter.id.in_(all_recruiter_ids)
+                )
+            )
+            recruiters_data = recruiter_result.all()
+
+            for rec in recruiters_data:
+                first_name = getattr(rec, "first_name", "") or ""
+                last_name = getattr(rec, "last_name", "") or ""
+                recruiter_name_dict[rec.id] = f"{first_name} {last_name}".strip()
+
+        # Build the response
+        response_verifications: List[VerificationDetailResponse] = []
+        for verification in verifications:
+            recruiter_name = recruiter_name_dict.get(
+                verification.verifier_id, "Unknown Recruiter"
+            )
+            response_verifications.append(
+                VerificationDetailResponse(
+                    recruiter_id=verification.verifier_id,
+                    verified_at=verification.verification_date,
+                    recruiter_name=recruiter_name,
+                )
+            )
+
+        return response_verifications
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        # logger.error(f"Error fetching verifiers for work experience {work_id}: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail="An unexpected internal server error occurred."
+        )
+
+
 
 
 @router.get("/{candidate_id}/certification", response_model= List[GetCandidateCertification])
@@ -915,7 +1076,7 @@ async def verify_work_experience(
         existing_verification = await db.execute(
             select(WorkExperienceVerification).where(
                 WorkExperienceVerification.work_experience_id == work_id,
-                WorkExperienceVerification.recruiter_id == user.recruiter.id
+                WorkExperienceVerification.verifier_id == user.recruiter.id
             )
         )
         if existing_verification.scalar_one_or_none():
@@ -927,7 +1088,7 @@ async def verify_work_experience(
         # Create new verification
         verification = WorkExperienceVerification(
             work_experience_id=work_id,
-            recruiter_id=user.recruiter.id,  # Changed from verifier_id to recruiter_id
+            verifier_id=user.recruiter.id,
             verification_date=datetime.now(timezone.utc)
         )
 
@@ -988,7 +1149,7 @@ async def unverify_work_experience(
         verification = await db.execute(
             select(WorkExperienceVerification).where(
                 WorkExperienceVerification.work_experience_id == work_id,
-                WorkExperienceVerification.recruiter_id == user.recruiter.id
+                WorkExperienceVerification.verifier_id == user.recruiter.id
             )
         )
         verification = verification.scalar_one_or_none()

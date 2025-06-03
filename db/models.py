@@ -168,12 +168,31 @@ class WorkExperience(Base):
     attachment_ids: Mapped[list[uuid.UUID]] = mapped_column(
         JSONB, nullable=True, default=lambda: []
     )
-    verified_by: Mapped[list[dict]] = mapped_column(
+    skills: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=True, default=lambda: []
+    )
+    description : Mapped[str] = mapped_column(String, nullable=True)
+    key_achievements : Mapped[list[str]] = mapped_column(
         JSONB, nullable=True, default=lambda: []
     )
 
     # Relationship
     candidate: Mapped["Candidate"] = relationship("Candidate", back_populates="work_experiences")
+
+class WorkExperienceProjects(Base):
+    __tablename__ = "work_experience_projects"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+    )
+    work_experience_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("work_experience.id", ondelete="CASCADE"), index=True
+    )
+    project_name: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(String, nullable=False)
+    duration : Mapped[str] = mapped_column(String, nullable=False)
+    team_size : Mapped[int] = mapped_column(Integer, nullable=False)
+    impact : Mapped[str] = mapped_column(String, nullable=False)
 
 class WorkExperienceVerification(Base):
     __tablename__ = "work_experience_verification"
