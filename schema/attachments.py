@@ -13,7 +13,7 @@ class AttachmentUploadResponse(BaseModel):
 class ListAttachments(BaseModel):
     uuid: UUID
     name: str
-    url: str
+    type: str
 
 
 class GetFileURLRequest(BaseModel):

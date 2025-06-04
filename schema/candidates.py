@@ -205,6 +205,8 @@ class GetCandidateWorkExperience(BaseModel):
     end_date: Optional[str] = None
     location: Optional[str] = None
     skills: Optional[List[str]] = None
+    key_achievements: Optional[List[str]] = None
+    description : Optional[str] = None
 
 
 class ListCandidateworkExperienceProjectsResponse(BaseModel):

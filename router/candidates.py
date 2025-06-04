@@ -10,6 +10,7 @@ from sympy import use
 from auth.Oth2 import get_current_user
 from auth.password import hash_password
 
+from schema.attachments import ListAttachments
 from schema.candidates import (
     Address,
     Certification,
@@ -535,6 +536,8 @@ async def get_work_experience(
             end_date=work_experience.end_date,
             location=work_experience.location,
             skills=work_experience.skills,
+            key_achievements=work_experience.key_achievements,
+            description=work_experience.description,
         )
 
     except HTTPException:
@@ -599,6 +602,70 @@ async def get_work_experience_projects(
         raise HTTPException(
             status_code=500, detail="An unexpected internal server error occurred."
         )
+
+
+@router.get("/{Candidate_id}/work_experience/{work_id}/attachments", response_model=List[ListAttachments])
+async def list_work_experience_attachements(
+    Candidate_id: int,
+    work_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        # Verify the work experience exists and belongs to the candidate
+        work_experience = await db.get(WorkExperience, work_id)
+        if not work_experience:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Work experience not found"
+            )
+            
+        if work_experience.candidate_id != Candidate_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Work experience does not belong to the specified candidate"
+            )
+
+        # Fetch attachments for this work experience
+        attachments_result = await db.execute(
+            select(Attachment).filter(
+                Attachment.id.in_(work_experience.attachment_ids)
+            )
+        )
+        attachments = attachments_result.scalars().all()
+
+        if not attachments:
+            return []
+        
+        # Build the response
+        response_attachments: List[ListAttachments] = []
+        for attachment in attachments:
+            # Determine the type based on content_type
+            content_type = attachment.content_type.lower()
+            if 'pdf' in content_type:
+                attachment_type = "pdf"
+            elif 'image' in content_type:
+                attachment_type = "image"
+            else:
+                attachment_type = "other"  # or "file" or whatever default you want
+            
+            response_attachments.append(
+                ListAttachments(
+                    uuid=attachment.id,
+                    name=attachment.filename,
+                    type=attachment_type
+                )
+            )
+
+        return response_attachments
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        # logger.error(f"Error fetching attachments for work experience {work_id}: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail="An unexpected internal server error occurred."
+        )
+
 
 
 @router.get("/{candidate_id}/work_experience/{work_id}/verifiers", response_model=List[VerificationDetailResponse])
