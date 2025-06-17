@@ -40,9 +40,9 @@ jobs:
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3 # Use a specific version tag
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             # --- Deployment Script on EC2 ---
 
