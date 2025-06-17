@@ -52,7 +52,7 @@ class Pagination:
         }
 
 
-# Generic pagination response model
+# Generic pagination response model.
 class PaginatedResponse(Generic[T], BaseModel):
     items: List[T]
     pagination: dict = Field(...)
