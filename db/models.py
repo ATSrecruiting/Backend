@@ -198,8 +198,7 @@ class WorkExperienceVerification(Base):
     __tablename__ = "work_experience_verification"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
-    )
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     work_experience_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("work_experience.id", ondelete="CASCADE"), index=True
     )
