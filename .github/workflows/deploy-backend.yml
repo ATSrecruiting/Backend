@@ -69,7 +69,7 @@ jobs:
 
             echo "--- Creating environment file ($ENV_FILE_PATH) ---"
             cat <<EOF | sudo tee $ENV_FILE_PATH > /dev/null
-            ${{ secrets.ENV_FILE_CONTENT }}
+            ${{ secrets.ENV_CONTENT }}
             EOF
             # Secure the .env file permissions
             sudo chmod 600 $ENV_FILE_PATH
