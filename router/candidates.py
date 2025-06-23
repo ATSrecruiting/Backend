@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Query, status
 from regex import E
-from sqlalchemy import Update, select, insert
+from sqlalchemy import Update, delete, select, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sympy import use
 
@@ -32,8 +32,12 @@ from schema.candidates import (
     UnVerifyCertificationResponse,
     UnVerifyEducationResponse,
     UnVerifyPersonalGrowthResponse,
+    UpdateWorkExperienceDescriptionRequest,
     UpdateWorkExperienceDescriptionResponse,
+    UpdateWorkExperienceKeyAchievementsRequest,
     UpdateWorkExperienceKeyAchievementsResponse,
+    UpdateWorkExperienceProjectsRequest,
+    UpdateWorkExperienceProjectsResponse,
     VerifyCertificationResponse,
     VerifyEducationResponse,
     VerifyPersonalGrowthResponse,
@@ -590,6 +594,7 @@ async def get_work_experience_projects(
                     id=project.id,
                     work_experience_id=project.work_experience_id,
                     project_name=project.project_name,
+                    duration=project.duration,
                     description=project.description,
                     team_size=project.team_size,
                     impact=project.impact,
@@ -1899,7 +1904,7 @@ async def unverify_personal_growth(
 async def update_work_experience_description(
     candidate_id: int,
     work_id: UUID,
-    description: str,
+    req: UpdateWorkExperienceDescriptionRequest,
     dbps: Tuple[User, AsyncSession] = Depends(get_current_user),
 ):
     user, db = dbps
@@ -1924,12 +1929,12 @@ async def update_work_experience_description(
             )
 
         # Update the description
-        work_experience.description = description
+        work_experience.description = req.description
         await db.commit()
 
         return UpdateWorkExperienceDescriptionResponse(
             work_experience_id=work_id,
-            description=description,
+            description=req.description,
             message="Work experience description updated successfully.",
         )
         
@@ -1951,7 +1956,7 @@ async def update_work_experience_description(
 async def update_work_experience_key_achievements(
     candidate_id: int,
     work_id: UUID,
-    key_achievements: List[str],
+    req: UpdateWorkExperienceKeyAchievementsRequest,
     dbps: Tuple[User, AsyncSession] = Depends(get_current_user),
 ):
     user, db = dbps
@@ -1976,12 +1981,12 @@ async def update_work_experience_key_achievements(
             )
 
         # Update the key achievements
-        work_experience.key_achievements = key_achievements
+        work_experience.key_achievements = req.key_achievements
         await db.commit()
 
         return UpdateWorkExperienceKeyAchievementsResponse(
             work_experience_id=work_id,
-            key_achievements=key_achievements,
+            key_achievements=req.key_achievements,
             message="Work experience key achievements updated successfully.",
         )
         
@@ -1993,3 +1998,64 @@ async def update_work_experience_key_achievements(
             status_code=500,
             detail=f"An error occurred during updating key achievements: {str(e)}"
         )
+    
+
+
+
+
+
+@router.put(
+    "/{candidate_id}/work_experience/{work_id}/projects",
+    response_model=UpdateWorkExperienceProjectsResponse,
+)
+async def update_work_experience_projects(
+    candidate_id: int,
+    work_id: UUID,
+    req: list[UpdateWorkExperienceProjectsRequest],
+    dbps: Tuple[User, AsyncSession] = Depends(get_current_user),
+):
+    user, db = dbps
+
+    if user.account_type != "candidate" or user.candidate is None:
+        raise HTTPException(403, "Unauthorized access: User is not a candidate.")
+
+    work_exp = await db.get(WorkExperience, work_id)
+    if not work_exp:
+        raise HTTPException(404, "Work experience not found.")
+    if work_exp.candidate_id != candidate_id:
+        raise HTTPException(400, "Work experience does not belong to the candidate.")
+
+    try:
+        # delete existing
+        await db.execute(
+            delete(WorkExperienceProjects)
+            .where(WorkExperienceProjects.work_experience_id == work_id)
+        )
+
+        # insert new
+        projects = []
+        for p in req:
+            proj = WorkExperienceProjects(
+                work_experience_id=work_id,
+                project_name=p.project_name,
+                description=p.description,
+                duration=p.duration,
+                team_size=p.team_size,
+                impact=p.impact,
+            )
+            projects.append(proj)
+        db.add_all(projects)
+
+        # commit everything in one transaction
+        await db.commit()
+
+        return UpdateWorkExperienceProjectsResponse(
+            work_experience_id=work_id,
+            projects=projects,
+            message="Work experience projects updated successfully.",
+        )
+
+    except Exception as e:
+        # rollback in case of error
+        await db.rollback()
+        raise HTTPException(500, f"An error occurred: {e}")

@@ -1,6 +1,7 @@
+from email import message
 from uuid import UUID, uuid4
 from pydantic import BaseModel, EmailStr, Field
-from typing import List, Optional
+from typing import Any, List, Optional
 from datetime import datetime, timezone
 
 from sympy import N
@@ -214,6 +215,7 @@ class ListCandidateworkExperienceProjectsResponse(BaseModel):
     work_experience_id: Optional[UUID] = None
     project_name: Optional[str] = None
     description: Optional[str] = None
+    duration : Optional[str] = None
     team_size: Optional[int] = None
     impact : Optional[str] = None
 
@@ -325,6 +327,9 @@ class UnVerifyPersonalGrowthResponse(BaseModel):
 
 
 
+class UpdateWorkExperienceDescriptionRequest(BaseModel):
+    description: str
+
 
 class UpdateWorkExperienceDescriptionResponse(BaseModel):
     work_experience_id: UUID
@@ -332,7 +337,40 @@ class UpdateWorkExperienceDescriptionResponse(BaseModel):
     message: str = "Work experience description updated successfully."
 
 
+
+class UpdateWorkExperienceKeyAchievementsRequest(BaseModel):
+    key_achievements: List[str]
+
 class UpdateWorkExperienceKeyAchievementsResponse(BaseModel):
     work_experience_id: UUID
     key_achievements: List[str]
     message: str = "Work experience key achievements updated successfully."
+
+
+
+class UpdateWorkExperienceProjectsRequest(BaseModel):
+    project_name: Optional[str] = None
+    description: Optional[str] = None
+    duration : Optional[str] = None
+    team_size: Optional[int] = None
+    impact : Optional[str] = None
+
+
+
+
+class WorkExperienceProjectSchema(BaseModel):
+    id: UUID
+    project_name: str
+    description: str
+    duration: str
+    team_size: int
+    impact: str
+
+    model_config = {
+        "from_attributes": True
+    }
+
+class UpdateWorkExperienceProjectsResponse(BaseModel):
+    work_experience_id : UUID
+    projects : List[WorkExperienceProjectSchema]
+    message: str = "Work experience projects updated successfully."
