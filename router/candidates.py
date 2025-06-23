@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Query, status
 from regex import E
-from sqlalchemy import select, insert
+from sqlalchemy import Update, select, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sympy import use
 
@@ -32,6 +32,8 @@ from schema.candidates import (
     UnVerifyCertificationResponse,
     UnVerifyEducationResponse,
     UnVerifyPersonalGrowthResponse,
+    UpdateWorkExperienceDescriptionResponse,
+    UpdateWorkExperienceKeyAchievementsResponse,
     VerifyCertificationResponse,
     VerifyEducationResponse,
     VerifyPersonalGrowthResponse,
@@ -1886,4 +1888,108 @@ async def unverify_personal_growth(
         raise HTTPException(
             status_code=500,
             detail="An unexpected internal server error occurred during unverification.",
+        )
+
+
+
+@router.put(
+    "/{candidate_id}/work_experience/{work_id}/description",
+    response_model=UpdateWorkExperienceDescriptionResponse,
+)
+async def update_work_experience_description(
+    candidate_id: int,
+    work_id: UUID,
+    description: str,
+    dbps: Tuple[User, AsyncSession] = Depends(get_current_user),
+):
+    user, db = dbps
+
+    try:
+        if user.account_type != "candidate" or user.candidate is None:
+            raise HTTPException(
+                status_code=403, detail="Unauthorized access: User is not a candidate."
+            )
+
+        # Verify the work experience exists and belongs to the candidate
+        work_experience = await db.get(WorkExperience, work_id)
+        if not work_experience:
+            raise HTTPException(
+                status_code=404, detail="Work experience not found"
+            )
+        
+        if work_experience.candidate_id != candidate_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Work experience does not belong to the specified candidate",
+            )
+
+        # Update the description
+        work_experience.description = description
+        await db.commit()
+
+        return UpdateWorkExperienceDescriptionResponse(
+            work_experience_id=work_id,
+            description=description,
+            message="Work experience description updated successfully.",
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred during updating description: {str(e)}"
+        )
+
+
+
+@router.put(
+    "/{candidate_id}/work_experience/{work_id}/key_achievements",
+    response_model= UpdateWorkExperienceKeyAchievementsResponse,
+)
+async def update_work_experience_key_achievements(
+    candidate_id: int,
+    work_id: UUID,
+    key_achievements: List[str],
+    dbps: Tuple[User, AsyncSession] = Depends(get_current_user),
+):
+    user, db = dbps
+
+    try:
+        if user.account_type != "candidate" or user.candidate is None:
+            raise HTTPException(
+                status_code=403, detail="Unauthorized access: User is not a candidate."
+            )
+
+        # Verify the work experience exists and belongs to the candidate
+        work_experience = await db.get(WorkExperience, work_id)
+        if not work_experience:
+            raise HTTPException(
+                status_code=404, detail="Work experience not found"
+            )
+        
+        if work_experience.candidate_id != candidate_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Work experience does not belong to the specified candidate",
+            )
+
+        # Update the key achievements
+        work_experience.key_achievements = key_achievements
+        await db.commit()
+
+        return UpdateWorkExperienceKeyAchievementsResponse(
+            work_experience_id=work_id,
+            key_achievements=key_achievements,
+            message="Work experience key achievements updated successfully.",
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred during updating key achievements: {str(e)}"
         )

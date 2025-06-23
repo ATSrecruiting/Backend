@@ -322,3 +322,17 @@ class UnVerifyPersonalGrowthResponse(BaseModel):
     personal_growth_id: str
     recruiter_id: int
     message: str = "Personal growth unverified successfully."
+
+
+
+
+class UpdateWorkExperienceDescriptionResponse(BaseModel):
+    work_experience_id: UUID
+    description: str
+    message: str = "Work experience description updated successfully."
+
+
+class UpdateWorkExperienceKeyAchievementsResponse(BaseModel):
+    work_experience_id: UUID
+    key_achievements: List[str]
+    message: str = "Work experience key achievements updated successfully."
