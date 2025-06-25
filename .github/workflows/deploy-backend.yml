@@ -79,7 +79,7 @@ jobs:
               -p 8000:8000 \
               --name $CONTAINER_NAME \
               --env-file $ENV_FILE_PATH \
-              --network AtsNetwork \ 
+              --network AtsNetwork \
               $IMAGE_NAME
 
             echo "--- Deployment complete ---"
