@@ -32,7 +32,14 @@ async def login(
     Login a recruiter
     """
     try:
-        result = await db.execute(select(User).filter(User.email == login_data.email))
+        result = await db.execute(
+    select(User)
+    .options(
+        selectinload(User.recruiter),
+        selectinload(User.candidate),
+    )
+    .filter(User.email == login_data.email)
+)
         user = result.scalar_one_or_none()
 
         if user is None or not verify_password(login_data.password, user.password):
@@ -85,9 +92,36 @@ async def login(
         db.add(session)
         await db.commit()
 
+
+        if user.account_type == "recruiter" and user.recruiter is not None:
+            user_details = GetLoggedUserResponse(
+                user_id=user.id,
+                recruiter_id=user.recruiter.id,
+                candidate_id=None,
+                user_type=user.account_type,
+                first_name=user.recruiter.first_name,
+                last_name=user.recruiter.last_name,
+                email=user.email,
+            )
+        elif user.account_type == "candidate" and user.candidate is not None:
+            user_details = GetLoggedUserResponse(
+                user_id=user.id,
+                recruiter_id=None,
+                candidate_id=user.candidate.id,
+                user_type=user.account_type,
+                first_name=user.candidate.first_name,
+                last_name=user.candidate.last_name,
+                email=user.email,
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User type not recognized",
+            )
         response_content = LoginResponseBody(
             access_token=access_token,
             account_type=user.account_type,
+            user=user_details,
         )
         response = JSONResponse(
             content=response_content.model_dump(),
@@ -104,11 +138,13 @@ async def login(
         return response
     except SQLAlchemyError as e:
         await db.rollback()
+        print(f"Database error during login: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Database error during login: {str(e)}",
         )
     except Exception as e:
+        print(f"Error during login: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error during login: {str(e)}",
