@@ -1,4 +1,5 @@
 from os import major
+import select
 from sqlalchemy import (
     Enum,
     Integer,
@@ -17,6 +18,21 @@ from .base import Base
 from typing import Optional
 
 from pgvector.sqlalchemy import Vector
+
+
+
+class LLMModel(Base):
+    __tablename__ = "llm_models"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String, unique=True, index=True)
+    provider: Mapped[str] = mapped_column(String, nullable=False)
+    model_name: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=datetime.now(timezone.utc)
+    )
+    
 
 
 class Attachment(Base):
@@ -52,6 +68,10 @@ class User(Base):
         ForeignKey("attachments.id", ondelete="SET NULL"),
         nullable=True,
     )
+    selected_llm_model: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("llm_models.id", ondelete="SET NULL"), nullable=True
+    )
+
 
     # Relationships
     sessions: Mapped[list["Session"]] = relationship(back_populates="user")
