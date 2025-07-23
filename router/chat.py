@@ -143,8 +143,12 @@ async def send_message(
     {message_data.message}
     """
 
+    if not message_data.model:
+        message_data.model = "mistralai/mistral-small-3.2-24b-instruct"
+
+
     model = OpenAIModel(
-        "mistralai/mistral-small-3.1-24b-instruct",
+        message_data.model,
         provider=OpenAIProvider(
             base_url="https://openrouter.ai/api/v1",
             api_key=config.OPEN_ROUTER_KEY,
