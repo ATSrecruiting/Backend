@@ -12,8 +12,7 @@ router = APIRouter(prefix="/llm_models")
 
 
 
-
-@router.get("/", response_model=list[ListLLMModelsResponse])
+@router.get("", response_model=list[ListLLMModelsResponse])
 async def list_llm_models(db = Depends(get_db)):
     """
     List all available LLM models.
