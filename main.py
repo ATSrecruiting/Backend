@@ -1,6 +1,6 @@
 from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
-from router import recruiter, vacancies, cv, candidates, attachments, chat, auth
+from router import recruiter, vacancies, cv, candidates, attachments, chat, auth, llm_models
 
 
 app = FastAPI()
@@ -24,6 +24,7 @@ api_router.include_router(candidates.router)
 api_router.include_router(attachments.router)
 api_router.include_router(chat.router)
 api_router.include_router(auth.router)
+api_router.include_router(llm_models.router)
 
 # Include the parent router in the app
 app.include_router(api_router)

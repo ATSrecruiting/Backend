@@ -397,6 +397,7 @@ async def similarity_search(
             for candidate in candidates
         ]
     except Exception as e:
+        print(f"Error fetching candidates: {str(e)}")
         raise HTTPException(
             status_code=500, detail=f"Error fetching candidates: {str(e)}"
         )
@@ -1059,7 +1060,7 @@ async def get_candidate_success_stories(
         )
     
 @router.get(
-    "/{candidate_id}/who_am_i", response_model=GetCandidateWhoAmI
+    "/{candidate_id}/who_am_i"
 )
 async def get_candidate_who_am_i(
     candidate_id: int, db: AsyncSession = Depends(get_db)
@@ -1076,10 +1077,10 @@ async def get_candidate_who_am_i(
             candidate_exists_result = await db.execute(
                 select(Candidate.id).filter(Candidate.id == candidate_id).limit(1)
             )
-            if candidate_exists_result.scalar_one_or_none() is None:
+            if candidate_exists_result.scalar_one_or_none() is None :
                 raise HTTPException(status_code=404, detail="Candidate not found")
             else:
-                return []
+                return {}
         
         # Validate data structure using Pydantic (WhoAmI model)
         validated_who_am_i: WhoAmI = WhoAmI.model_validate(
@@ -1088,7 +1089,7 @@ async def get_candidate_who_am_i(
             else raw_who_am_i
         )
         if not validated_who_am_i:
-            return []
+            return {}
         
         response_who_am_i = GetCandidateWhoAmI(
             id=validated_who_am_i.id,

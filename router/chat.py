@@ -83,11 +83,13 @@ async def send_message(
     candidates_data_q = await db.execute(
         select(Candidate)
         .options(
-            joinedload(Candidate.resume)
-        )  # This eagerly loads the resume relationship
+            joinedload(Candidate.resume),
+            joinedload(Candidate.work_experiences),
+            joinedload(Candidate.educations),
+        )
         .where(Candidate.id.in_(chat_session.candidates))
     )
-    candidates_objs = candidates_data_q.scalars().all()
+    candidates_objs = candidates_data_q.unique().scalars().all()
     candidates_data = []
     for candidate in candidates_objs:
         resume_access_url = None
@@ -106,8 +108,8 @@ async def send_message(
                 "date_of_birth": candidate.date_of_birth,
                 "years_of_experience": candidate.years_of_experience,
                 "job_title": candidate.job_title,
-                "work_experience": candidate.work_experience,
-                "education": candidate.education,
+                "work_experience": candidate.work_experiences,
+                "education": candidate.educations,
                 "skills": candidate.skills,
                 "certifications": candidate.certifications,
                 "resume_link": resume_access_url,
@@ -141,8 +143,12 @@ async def send_message(
     {message_data.message}
     """
 
+    if not message_data.model:
+        message_data.model = "mistralai/mistral-small-3.2-24b-instruct"
+
+
     model = OpenAIModel(
-        "mistralai/mistral-small-3.1-24b-instruct",
+        message_data.model,
         provider=OpenAIProvider(
             base_url="https://openrouter.ai/api/v1",
             api_key=config.OPEN_ROUTER_KEY,

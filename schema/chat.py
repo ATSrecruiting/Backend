@@ -12,5 +12,6 @@ class CreateTempSessionResponse(BaseModel):
 
 
 class SendMessageRequest(BaseModel):
+    model: str
     message: str
     session_id: str
